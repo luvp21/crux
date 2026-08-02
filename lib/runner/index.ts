@@ -4,8 +4,7 @@ import { buildJavascriptDriver } from "./javascript";
 import { buildCppDriver } from "./cpp";
 import { buildJavaDriver } from "./java";
 
-export type { RunnerMeta, PType } from "./types";
-export { PROBLEM_RUNNERS } from "./problem-runners";
+export type { RunnerMeta } from "./types";
 
 /**
  * Wraps a user's raw `class Solution` submission with the stdin-parsing /
