@@ -11,15 +11,20 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { crewId: string; problemId: string } },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const rows = await getCrewSolutionsForProblem(session.user.id, params.crewId, params.problemId);
-  if (rows === null) {
-    return NextResponse.json({ error: "Not a member of this crew" }, { status: 403 });
-  }
+    const rows = await getCrewSolutionsForProblem(session.user.id, params.crewId, params.problemId);
+    if (rows === null) {
+      return NextResponse.json({ error: "Not a member of this crew" }, { status: 403 });
+    }
 
-  return NextResponse.json({ rows });
+    return NextResponse.json({ rows });
+  } catch (err) {
+    console.error("[crew/problems/solutions] Error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
