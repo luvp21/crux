@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     }
 
     const testCases = (problem.testCases as { input: string; expected: string }[]) ?? [];
+    const hiddenTestCases = (problem.hiddenTestCases as { input: string; expected: string }[]) ?? [];
 
     // ---- Mock mode ----
     if (!JUDGE0_URL) {
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
         got: mockVerdict === "accepted" ? tc.expected : "mock_output",
         passed: mockVerdict === "accepted",
       }));
+      const hiddenPassedCount = mockVerdict === "accepted" ? hiddenTestCases.length : 0;
 
       // Record submission
       const [sub] = await db
@@ -93,6 +95,7 @@ export async function POST(req: NextRequest) {
         verdict: mockVerdict,
         runtime: 41,
         results,
+        hiddenResults: { total: hiddenTestCases.length, passed: hiddenPassedCount },
         submissionId: sub.id,
         mock: true,
       });
@@ -115,10 +118,9 @@ export async function POST(req: NextRequest) {
     const results: { case: number; input: string; expected: string; got: string; passed: boolean }[] = [];
     let overallVerdict: Verdict = "accepted";
     let totalTime = 0;
+    let hiddenPassed = 0;
 
-    for (let i = 0; i < testCases.length; i++) {
-      const tc = testCases[i];
-
+    async function runCase(tc: { input: string; expected: string }) {
       const res = await fetch(
         `${JUDGE0_URL}/submissions?base64_encoded=true&wait=true&fields=stdout,stderr,status,time,memory,compile_output`,
         {
@@ -133,36 +135,38 @@ export async function POST(req: NextRequest) {
       );
 
       if (!res.ok) {
-        overallVerdict = "runtime_error";
-        results.push({ case: i + 1, input: tc.input, expected: tc.expected, got: "Judge0 error", passed: false });
-        continue;
+        return { verdict: "runtime_error" as Verdict, stdout: "Judge0 error", time: 0, passed: false };
       }
 
       const result = await res.json();
-      const stdout = result.stdout
-        ? Buffer.from(result.stdout, "base64").toString().trim()
-        : "";
-
+      const stdout = result.stdout ? Buffer.from(result.stdout, "base64").toString().trim() : "";
       const statusId = result.status?.id ?? 0;
-      const passed = stdout === tc.expected.trim();
-      totalTime += parseFloat(result.time ?? "0") * 1000;
+      const outputMatches = stdout === tc.expected.trim();
 
       let caseVerdict: Verdict = "accepted";
       if (statusId === 5) caseVerdict = "time_limit_exceeded";
       else if (statusId >= 6 && statusId <= 12) caseVerdict = "runtime_error";
-      else if (!passed) caseVerdict = "wrong_answer";
+      else if (!outputMatches) caseVerdict = "wrong_answer";
 
-      if (caseVerdict !== "accepted" && overallVerdict === "accepted") {
-        overallVerdict = caseVerdict;
-      }
+      // `passed` reflects the case verdict, not just the raw output match — a case
+      // that times out (or errors) is never "passed" even if its stdout happened to
+      // match before the timeout/error occurred.
+      return { verdict: caseVerdict, stdout, time: parseFloat(result.time ?? "0") * 1000, passed: caseVerdict === "accepted" };
+    }
 
-      results.push({
-        case: i + 1,
-        input: tc.input,
-        expected: tc.expected,
-        got: stdout,
-        passed,
-      });
+    for (let i = 0; i < testCases.length; i++) {
+      const tc = testCases[i];
+      const { verdict: caseVerdict, stdout, time, passed } = await runCase(tc);
+      totalTime += time;
+      if (caseVerdict !== "accepted" && overallVerdict === "accepted") overallVerdict = caseVerdict;
+      results.push({ case: i + 1, input: tc.input, expected: tc.expected, got: stdout, passed });
+    }
+
+    for (const tc of hiddenTestCases) {
+      const { verdict: caseVerdict, time, passed } = await runCase(tc);
+      totalTime += time;
+      if (caseVerdict !== "accepted" && overallVerdict === "accepted") overallVerdict = caseVerdict;
+      if (passed) hiddenPassed++;
     }
 
     const runtime = Math.round(totalTime);
@@ -176,7 +180,7 @@ export async function POST(req: NextRequest) {
         crewId,
         code,
         language,
-        verdict: overallVerdict as "accepted" | "wrong_answer" | "runtime_error" | "time_limit_exceeded",
+        verdict: overallVerdict,
         runtime,
         context: "daily",
       })
@@ -190,6 +194,7 @@ export async function POST(req: NextRequest) {
       verdict: overallVerdict as string,
       runtime,
       results,
+      hiddenResults: { total: hiddenTestCases.length, passed: hiddenPassed },
       submissionId: sub.id,
     });
   } catch (err) {

@@ -1,68 +1,90 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
-import { challenges, problems } from "@/db/schema";
+import { challenges, problems, crews, crewChallengePreferences } from "@/db/schema";
+import { selectChallengeProblem, type ChallengeCandidate } from "@/lib/challenge-selection";
+
+const PROBLEMS_PER_WEEK = 3;
 
 /**
  * GET /api/cron/weekly
  * Called weekly (Sunday midnight UTC via Vercel Cron or manual trigger).
- * Picks 2–3 problems for the new week's challenge set.
+ * Per crew: picks 2–3 problems for the new week, respecting the crew's topic/difficulty
+ * preference (falling back to unfiltered random), avoiding duplicates within the set.
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
-  if (
-    process.env.CRON_SECRET &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Compute next Monday's date as the challenge_date for this week
     const now = new Date();
-    const dayOfWeek = now.getUTCDay(); // 0 = Sunday
+    const dayOfWeek = now.getUTCDay();
     const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
     const nextMonday = new Date(now.getTime() + daysUntilMonday * 86400000);
     const weekDate = nextMonday.toISOString().slice(0, 10);
 
-    // Check if this week's challenges already exist
-    const existing = await db
-      .select()
-      .from(challenges)
-      .where(and(eq(challenges.challengeDate, weekDate), eq(challenges.type, "weekly")));
+    const allProblems = await db
+      .select({ id: problems.id, topicTag: problems.topicTag, difficulty: problems.difficulty })
+      .from(problems);
+    const allCrews = await db.select().from(crews);
 
-    if (existing.length > 0) {
-      return NextResponse.json({
-        message: "Weekly challenges already set",
-        count: existing.length,
-      });
-    }
+    let crewsProcessed = 0;
+    let challengesCreated = 0;
+    let crewsFailed = 0;
+    const failedCrewIds: string[] = [];
 
-    // Pick 3 random problems (different from each other)
-    const allProblems = await db.select({ id: problems.id, topicTag: problems.topicTag }).from(problems);
+    for (const crew of allCrews) {
+      try {
+        const existing = await db
+          .select()
+          .from(challenges)
+          .where(and(eq(challenges.crewId, crew.id), eq(challenges.type, "weekly"), eq(challenges.challengeDate, weekDate)));
+        if (existing.length > 0) {
+          crewsProcessed++;
+          continue;
+        }
 
-    // Shuffle and take 3
-    const shuffled = allProblems.sort(() => Math.random() - 0.5);
-    const picked = shuffled.slice(0, Math.min(3, shuffled.length));
+        const [preference] = await db
+          .select()
+          .from(crewChallengePreferences)
+          .where(and(eq(crewChallengePreferences.crewId, crew.id), eq(crewChallengePreferences.type, "weekly")))
+          .limit(1);
+        const prefArg = preference ? { topicTag: preference.topicTag, difficulty: preference.difficulty } : null;
 
-    const created = [];
-    for (const p of picked) {
-      const [challenge] = await db
-        .insert(challenges)
-        .values({
-          type: "weekly",
-          challengeDate: weekDate,
-          problemId: p.id,
-        })
-        .returning();
-      created.push(challenge);
+        const picked: ChallengeCandidate[] = [];
+        for (let i = 0; i < PROBLEMS_PER_WEEK; i++) {
+          const remaining = allProblems.filter((p) => !picked.some((pp) => pp.id === p.id));
+          const next = selectChallengeProblem(remaining, prefArg, null);
+          if (!next) break;
+          picked.push(next);
+        }
+
+        for (const p of picked) {
+          await db.insert(challenges).values({
+            crewId: crew.id,
+            type: "weekly",
+            challengeDate: weekDate,
+            problemId: p.id,
+          });
+          challengesCreated++;
+        }
+
+        crewsProcessed++;
+      } catch (crewErr) {
+        crewsFailed++;
+        failedCrewIds.push(crew.id);
+        console.error(`[cron/weekly] Failed to process crew ${crew.id}:`, crewErr);
+      }
     }
 
     return NextResponse.json({
-      message: "Weekly challenges set",
+      message: "Weekly challenges processed",
       weekDate,
-      count: created.length,
-      challengeIds: created.map((c) => c.id),
+      crewsProcessed,
+      challengesCreated,
+      crewsFailed,
     });
   } catch (err) {
     console.error("[cron/weekly] Error:", err);

@@ -7,6 +7,8 @@ import {
   date,
   pgEnum,
   jsonb,
+  unique,
+  boolean,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -123,6 +125,9 @@ export const problems = pgTable("problems", {
   constraints: text("constraints").notNull().default(""),
   starterCode: jsonb("starter_code").$type<Record<string, string>>().default({}),
   testCases: jsonb("test_cases").$type<{ input: string; expected: string }[]>().default([]),
+  hiddenTestCases: jsonb("hidden_test_cases")
+    .$type<{ input: string; expected: string }[]>()
+    .default([]),
   // Method name + param/return types for generating a real-execution driver
   // (lib/runner). Null for problems that don't fit a single-call model
   // (multi-method classes, round-trip tests, custom graph structures) —
@@ -130,16 +135,40 @@ export const problems = pgTable("problems", {
   runnerMeta: jsonb("runner_meta").$type<import("@/lib/runner/types").RunnerMeta | null>().default(null),
 });
 
-export const challenges = pgTable("challenges", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  type: challengeTypeEnum("type").notNull(),
-  challengeDate: date("challenge_date").notNull(),
-  problemId: text("problem_id")
-    .notNull()
-    .references(() => problems.id, { onDelete: "cascade" }),
-});
+export const challenges = pgTable(
+  "challenges",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    crewId: text("crew_id")
+      .notNull()
+      .references(() => crews.id, { onDelete: "cascade" }),
+    type: challengeTypeEnum("type").notNull(),
+    challengeDate: date("challenge_date").notNull(),
+    problemId: text("problem_id")
+      .notNull()
+      .references(() => problems.id, { onDelete: "cascade" }),
+  },
+  (t) => [unique().on(t.crewId, t.type, t.challengeDate, t.problemId)],
+);
+
+export const crewChallengePreferences = pgTable(
+  "crew_challenge_preferences",
+  {
+    crewId: text("crew_id")
+      .notNull()
+      .references(() => crews.id, { onDelete: "cascade" }),
+    type: challengeTypeEnum("type").notNull(),
+    topicTag: text("topic_tag"),
+    difficulty: difficultyEnum("difficulty"),
+    updatedByUserId: text("updated_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.crewId, t.type] })],
+);
 
 export const submissions = pgTable("submissions", {
   id: text("id")
@@ -162,6 +191,29 @@ export const submissions = pgTable("submissions", {
   submittedAt: timestamp("submitted_at", { mode: "date" })
     .notNull()
     .defaultNow(),
+});
+
+export const codeCheckpoints = pgTable("code_checkpoints", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  problemId: text("problem_id")
+    .notNull()
+    .references(() => problems.id, { onDelete: "cascade" }),
+  crewId: text("crew_id")
+    .notNull()
+    .references(() => crews.id, { onDelete: "cascade" }),
+  code: text("code").notNull(),
+  language: text("language").notNull(),
+  insertedChars: integer("inserted_chars").notNull().default(0),
+  isPasteFlag: boolean("is_paste_flag").notNull().default(false),
+  submissionId: text("submission_id").references(() => submissions.id, {
+    onDelete: "cascade",
+  }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
 export const liveSessions = pgTable("live_sessions", {

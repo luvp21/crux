@@ -19,14 +19,14 @@ export type Problem = {
  * Get today's daily challenge problem.
  * Falls back to a static seed problem if no DB challenge exists.
  */
-export async function getTodaysProblem(): Promise<Problem> {
+export async function getTodaysProblem(crewId: string): Promise<Problem> {
   try {
     const today = new Date().toISOString().slice(0, 10);
 
     const [challenge] = await db
       .select()
       .from(challenges)
-      .where(and(eq(challenges.challengeDate, today), eq(challenges.type, "daily")))
+      .where(and(eq(challenges.crewId, crewId), eq(challenges.challengeDate, today), eq(challenges.type, "daily")))
       .limit(1);
 
     if (challenge) {
@@ -74,7 +74,7 @@ export async function getTodaysProblem(): Promise<Problem> {
 /**
  * Get this week's challenge problems.
  */
-export async function getWeeklyProblems(): Promise<Problem[]> {
+export async function getWeeklyProblems(crewId: string): Promise<Problem[]> {
   try {
     // Get challenges for this week (Monday of current week)
     const now = new Date();
@@ -86,7 +86,7 @@ export async function getWeeklyProblems(): Promise<Problem[]> {
     const weeklyChallenges = await db
       .select()
       .from(challenges)
-      .where(and(eq(challenges.challengeDate, weekDate), eq(challenges.type, "weekly")));
+      .where(and(eq(challenges.crewId, crewId), eq(challenges.challengeDate, weekDate), eq(challenges.type, "weekly")));
 
     if (weeklyChallenges.length > 0) {
       const result: Problem[] = [];
