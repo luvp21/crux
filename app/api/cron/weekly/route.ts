@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
-import { challenges, problems, crews } from "@/db/schema";
+import { challenges, problems } from "@/db/schema";
 
 /**
  * GET /api/cron/weekly
@@ -45,23 +45,17 @@ export async function GET(req: NextRequest) {
     const shuffled = allProblems.sort(() => Math.random() - 0.5);
     const picked = shuffled.slice(0, Math.min(3, shuffled.length));
 
-    // Get all crews
-    const allCrews = await db.select().from(crews);
-
     const created = [];
-    for (const crew of allCrews) {
-      for (const p of picked) {
-        const [challenge] = await db
-          .insert(challenges)
-          .values({
-            crewId: crew.id,
-            type: "weekly",
-            challengeDate: weekDate,
-            problemId: p.id,
-          })
-          .returning();
-        created.push(challenge);
-      }
+    for (const p of picked) {
+      const [challenge] = await db
+        .insert(challenges)
+        .values({
+          type: "weekly",
+          challengeDate: weekDate,
+          problemId: p.id,
+        })
+        .returning();
+      created.push(challenge);
     }
 
     return NextResponse.json({

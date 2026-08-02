@@ -53,24 +53,18 @@ export async function GET(req: NextRequest) {
 
     const randomProblem = allProblems[Math.floor(Math.random() * allProblems.length)];
 
-    // Create tomorrow's challenge for each crew
-    const allCrews = await db.select().from(crews);
-    const createdChallenges = [];
-
-    for (const crew of allCrews) {
-      const [challenge] = await db
-        .insert(challenges)
-        .values({
-          crewId: crew.id,
-          type: "daily",
-          challengeDate: tomorrow,
-          problemId: randomProblem.id,
-        })
-        .returning();
-      createdChallenges.push(challenge);
-    }
+    // Create tomorrow's challenge
+    const [challenge] = await db
+      .insert(challenges)
+      .values({
+        type: "daily",
+        challengeDate: tomorrow,
+        problemId: randomProblem.id,
+      })
+      .returning();
 
     // ---- Update crew streaks for today ----
+    const allCrews = await db.select().from(crews);
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
     for (const crew of allCrews) {
@@ -93,8 +87,8 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
-      message: "Daily challenges set",
-      count: createdChallenges.length,
+      message: "Daily challenge set",
+      challengeId: challenge.id,
       problemId: randomProblem.id,
       date: tomorrow,
     });
