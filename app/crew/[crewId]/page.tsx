@@ -6,7 +6,8 @@ import { PlusMarks } from "@/components/plus-marks";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { db } from "@/db";
 import { crewMembers, crews } from "@/db/schema";
-import { getTodaysProblem, getWeeklyProblems, getCrewActivity } from "@/lib/problems";
+import { getTodaysProblem, getWeeklyProblems } from "@/lib/problems";
+import { getCrewSolutionsForProblem } from "@/lib/crew-solutions";
 
 export default async function CrewHomePage({ params }: { params: { crewId: string } }) {
   const session = await requireSession();
@@ -25,7 +26,7 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
 
   const todaysProblem = await getTodaysProblem(params.crewId);
   const weeklyProblems = await getWeeklyProblems(params.crewId);
-  const recentActivity = await getCrewActivity(params.crewId);
+  const crewSolutions = (await getCrewSolutionsForProblem(session.user.id, params.crewId, todaysProblem.id)) ?? [];
 
   const initials = (session.user.name ?? session.user.email ?? "??")
     .split(" ")
@@ -34,16 +35,20 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
     .slice(0, 2)
     .toUpperCase();
 
-  // Build activity feed from real data (fallback to static if none)
-  const activity = recentActivity.length > 0
-    ? recentActivity.slice(0, 8).map((sub) => ({
-        who: "member",
-        what: `${sub.verdict === "accepted" ? "solved" : "attempted"} a problem`,
-        when: getTimeAgo(sub.submittedAt),
-      }))
-    : [
-        { who: "crew", what: "waiting for first submission", when: "today" },
-      ];
+  const activity = crewSolutions.map((row) => {
+    if (row.status === "not_started") {
+      return { userId: row.userId, label: "not started", link: null };
+    }
+    if (row.status === "locked") {
+      return { userId: row.userId, label: "locked — submit today's problem to see this", link: null };
+    }
+    const verb = row.verdict === "accepted" ? "solved" : "attempted";
+    return {
+      userId: row.userId,
+      label: `${verb} · ${getTimeAgo(new Date(row.submittedAt))}`,
+      link: `/crew/${params.crewId}/problems/${todaysProblem.id}/solutions/${row.userId}`,
+    };
+  });
 
   // Compute weekly progress
   const weeklyDone = Math.min(solvedToday.length, weeklyProblems.length);
@@ -313,18 +318,20 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
           <div style={{ fontSize: "10.5px", letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--muted)", padding: "22px 0 10px" }}>
             activity.log
           </div>
-          {activity.map((a, i) => (
+          {activity.map((a) => (
             <div
-              key={i}
+              key={a.userId}
               style={{ display: "flex", alignItems: "baseline", gap: 18, padding: "13px 0", borderTop: "1px solid var(--line)" }}
             >
-              <span style={{ fontSize: "10.5px", color: "var(--accent)", width: 74, flex: "none", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                {a.who}
-              </span>
-              <span style={{ fontSize: "12.5px", lineHeight: 1.5, flex: 1, color: "var(--fg)" }}>{a.what}</span>
-              <span style={{ fontSize: "10.5px", color: "var(--muted)", whiteSpace: "nowrap", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                {a.when}
-              </span>
+              <span style={{ fontSize: "12.5px", lineHeight: 1.5, flex: 1, color: "var(--fg)" }}>{a.label}</span>
+              {a.link && (
+                <Link
+                  href={a.link}
+                  style={{ fontSize: "10.5px", color: "var(--accent)", whiteSpace: "nowrap", letterSpacing: "0.1em", textTransform: "uppercase" }}
+                >
+                  view →
+                </Link>
+              )}
             </div>
           ))}
         </div>
