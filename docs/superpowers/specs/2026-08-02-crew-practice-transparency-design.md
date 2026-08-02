@@ -72,7 +72,7 @@ crewId       text, FK -> crews.id
 code         text
 language     text
 insertedChars integer   -- len(code) - len(previous checkpoint's code) for this (user, problem), clamped to 0 minimum
-isPasteFlag  boolean    -- insertedChars > threshold (proposed: 80 chars in one interval)
+isPasteFlag  boolean    -- insertedChars > 80 (default threshold; tunable, not hardcoded in the query)
 submissionId text, FK -> submissions.id, nullable  -- set retroactively when the next submit happens
 createdAt    timestamp
 ```
@@ -84,10 +84,12 @@ doesn't require new infrastructure.
 
 ### `submissions` (existing table, unchanged)
 
-Time spent is computed at read time as `submittedAt - MIN(codeCheckpoints.createdAt WHERE submissionId =
-this submission, or WHERE problemId/userId match and submissionId IS NULL and createdAt < submittedAt for
-the current open session)`. If no checkpoints exist for a submission (e.g., solved faster than one
-checkpoint interval), time spent shows as "< 25s" rather than a hard number — see Edge cases.
+Time spent is computed at read time as `submittedAt - MIN(codeCheckpoints.createdAt) WHERE
+codeCheckpoints.submissionId = this submission's id`. Checkpoints are tagged with the submission's id
+synchronously as part of the submit request (see Flow 3), so by the time anything reads a submission, its
+checkpoints are already attached — no separate "open session" lookup is needed. If no checkpoints exist for
+a submission (e.g., solved faster than one checkpoint interval), time spent shows as "< 25s" rather than a
+hard number — see Edge cases.
 
 ## Feature flows
 
