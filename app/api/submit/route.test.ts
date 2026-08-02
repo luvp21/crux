@@ -18,6 +18,10 @@ const REAL_JUDGE0_PROBLEM = {
 // factory below reads through this reference.
 let currentProblem: typeof MOCK_MODE_PROBLEM | typeof REAL_JUDGE0_PROBLEM = MOCK_MODE_PROBLEM;
 
+// Set by the mocked db.update(...).set(...).where(...) chain so tests can
+// assert which submission id the tagging call was invoked with.
+let taggedWith: string | null = null;
+
 vi.mock("@/auth", () => ({
   auth: vi.fn(async () => ({ user: { id: "u1" } })),
 }));
@@ -40,6 +44,14 @@ vi.mock("@/db", () => ({
         returning: vi.fn(async () => [{ id: "sub-1" }]),
       })),
     })),
+    update: vi.fn(() => ({
+      set: vi.fn((vals: { submissionId: string }) => ({
+        where: vi.fn(async () => {
+          taggedWith = vals.submissionId;
+          return [];
+        }),
+      })),
+    })),
   },
 }));
 
@@ -59,6 +71,17 @@ describe("POST /api/submit (mock mode, no JUDGE0_URL)", () => {
     expect(body.hiddenResults).not.toHaveProperty("expected");
     const bodyText = JSON.stringify(body);
     expect(bodyText).not.toContain("SECRET_VALUE_998");
+  });
+
+  it("tags open checkpoints with the new submission id", async () => {
+    taggedWith = null;
+    const { POST } = await import("@/app/api/submit/route");
+    const req = new Request("http://localhost/api/submit", {
+      method: "POST",
+      body: JSON.stringify({ problemId: "p1", crewId: "crew-1", code: "print(2)", language: "python" }),
+    });
+    await POST(req as never);
+    expect(taggedWith).toBe("sub-1");
   });
 });
 

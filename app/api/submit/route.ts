@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { submissions, problems } from "@/db/schema";
+import { submissions, problems, codeCheckpoints } from "@/db/schema";
 import { updateStreaksAfterSolve } from "@/lib/streak";
 import { buildDriverCode } from "@/lib/runner";
 
@@ -86,6 +86,17 @@ export async function POST(req: NextRequest) {
           context: "daily",
         })
         .returning({ id: submissions.id });
+
+      await db
+        .update(codeCheckpoints)
+        .set({ submissionId: sub.id })
+        .where(
+          and(
+            eq(codeCheckpoints.userId, session.user.id),
+            eq(codeCheckpoints.problemId, problemId),
+            isNull(codeCheckpoints.submissionId),
+          ),
+        );
 
       if (mockVerdict === "accepted") {
         await updateStreaksAfterSolve(session.user.id, crewId);
@@ -185,6 +196,17 @@ export async function POST(req: NextRequest) {
         context: "daily",
       })
       .returning({ id: submissions.id });
+
+    await db
+      .update(codeCheckpoints)
+      .set({ submissionId: sub.id })
+      .where(
+        and(
+          eq(codeCheckpoints.userId, session.user.id),
+          eq(codeCheckpoints.problemId, problemId),
+          isNull(codeCheckpoints.submissionId),
+        ),
+      );
 
     if (overallVerdict === "accepted") {
       await updateStreaksAfterSolve(session.user.id, crewId);
