@@ -106,9 +106,8 @@ export function RoomClient({
   const postCheckpoint = useCallback(
     async (snapshotCode: string) => {
       if (snapshotCode === lastCheckpointCodeRef.current) return;
-      lastCheckpointCodeRef.current = snapshotCode;
       try {
-        await fetch("/api/checkpoints", {
+        const res = await fetch("/api/checkpoints", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -118,8 +117,12 @@ export function RoomClient({
             language: LANG_KEY[language] ?? "python",
           }),
         });
+        if (res.ok) {
+          lastCheckpointCodeRef.current = snapshotCode;
+        }
       } catch {
         // Best-effort: a missed checkpoint is a gap in the timeline, not a broken submit flow.
+        // Leave lastCheckpointCodeRef untouched so the next attempt retries this code.
       }
     },
     [problem.id, crewId, language],
@@ -158,6 +161,7 @@ export function RoomClient({
 
   // Reset code
   const handleReset = useCallback(() => {
+    clearTimeout(checkpointTimeout.current);
     const key = LANG_KEY[language] ?? "python";
     setCode(problem.starterCode[key] ?? "");
     setRunOutput(null);
