@@ -23,8 +23,8 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
   const today = new Date().toISOString().slice(0, 10);
   const solvedToday = members.filter((m) => m.lastCompleted === today);
 
-  const todaysProblem = await getTodaysProblem();
-  const weeklyProblems = await getWeeklyProblems();
+  const todaysProblem = await getTodaysProblem(params.crewId);
+  const weeklyProblems = await getWeeklyProblems(params.crewId);
   const recentActivity = await getCrewActivity(params.crewId);
 
   const initials = (session.user.name ?? session.user.email ?? "??")

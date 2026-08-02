@@ -18,7 +18,7 @@ export default async function RoomPage({ params }: { params: { crewId: string } 
     .from(crewMembers)
     .where(eq(crewMembers.crewId, params.crewId));
 
-  const problem = await getTodaysProblem();
+  const problem = await getTodaysProblem(params.crewId);
   const userSubs = await getUserSubmissions(session.user.id, problem.id);
 
   return (
