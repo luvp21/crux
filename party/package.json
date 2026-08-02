@@ -1,0 +1,12 @@
+{
+  "name": "crux-party",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx partykit dev",
+    "deploy": "npx partykit deploy"
+  },
+  "dependencies": {
+    "partykit": "^0.0.108"
+  }
+}

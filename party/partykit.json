@@ -1,0 +1,5 @@
+{
+  "name": "crux-party",
+  "main": "server.ts",
+  "compatibilityDate": "2024-01-01"
+}
