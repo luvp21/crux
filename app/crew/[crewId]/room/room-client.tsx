@@ -100,6 +100,30 @@ export function RoomClient({
     userName,
   );
   const codeChangeTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const checkpointTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const lastCheckpointCodeRef = useRef(code);
+
+  const postCheckpoint = useCallback(
+    async (snapshotCode: string) => {
+      if (snapshotCode === lastCheckpointCodeRef.current) return;
+      lastCheckpointCodeRef.current = snapshotCode;
+      try {
+        await fetch("/api/checkpoints", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            problemId: problem.id,
+            crewId,
+            code: snapshotCode,
+            language: LANG_KEY[language] ?? "python",
+          }),
+        });
+      } catch {
+        // Best-effort: a missed checkpoint is a gap in the timeline, not a broken submit flow.
+      }
+    },
+    [problem.id, crewId, language],
+  );
 
   const testCases = problem.testCases ?? [];
   const activeCase = testCases[caseIdx] ?? { input: "", expected: "" };
@@ -123,8 +147,13 @@ export function RoomClient({
       codeChangeTimeout.current = setTimeout(() => {
         updateStatus("idle");
       }, 30000); // go idle after 30s of no changes
+
+      clearTimeout(checkpointTimeout.current);
+      checkpointTimeout.current = setTimeout(() => {
+        postCheckpoint(val);
+      }, 25000); // one checkpoint per ~25s of active typing
     },
-    [updateStatus],
+    [updateStatus, postCheckpoint],
   );
 
   // Reset code
@@ -146,6 +175,7 @@ export function RoomClient({
     setRunStatus("running");
     setRunOutput(null);
     try {
+      postCheckpoint(code);
       const res = await fetch("/api/judge0", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -176,7 +206,7 @@ export function RoomClient({
     } finally {
       setRunStatus("idle");
     }
-  }, [code, language, activeCase]);
+  }, [code, language, activeCase, postCheckpoint]);
 
   // ---- Submit (all test cases) ----
   const handleSubmit = useCallback(async () => {
@@ -185,6 +215,7 @@ export function RoomClient({
     setVerdict(null);
     setRuntime(null);
     try {
+      postCheckpoint(code);
       const res = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -224,7 +255,7 @@ export function RoomClient({
     } finally {
       setRunStatus("idle");
     }
-  }, [code, language, problem.id, crewId]);
+  }, [code, language, problem.id, crewId, postCheckpoint]);
 
   // ---- Hints ----
   const handleRequestHint = useCallback(async () => {
