@@ -108,6 +108,7 @@ describe("GET /api/cron/weekly", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveProperty("crewsProcessed");
+    expect(body).toHaveProperty("crewsFailed");
   });
 
   it("processes a crew and inserts 3 weekly challenges scoped to that crew", async () => {
@@ -213,5 +214,47 @@ describe("GET /api/cron/weekly", () => {
         expect.objectContaining({ crewId: "crew-b", type: "weekly" }),
       );
     }
+  });
+
+  it("isolates a per-crew failure: one crew erroring doesn't stop the rest from being processed", async () => {
+    mocks.selectImpl.mockImplementation(() => ({
+      from: vi.fn((table: unknown) => {
+        if (table === crews) {
+          return arrayWithChain([{ id: "crew-fail" }, { id: "crew-ok" }]);
+        }
+        if (table === problems) {
+          return arrayWithChain([
+            { id: "p1", topicTag: "arrays", difficulty: "easy" },
+            { id: "p2", topicTag: "graphs", difficulty: "medium" },
+            { id: "p3", topicTag: "dp", difficulty: "hard" },
+          ]);
+        }
+        if (table === challenges) {
+          return arrayWithChain([], {
+            where: vi.fn((predicate: unknown) => {
+              const conditions = extractEqConditions(predicate);
+              const crewIdCondition = conditions.find((c) => c.value === "crew-fail");
+              if (crewIdCondition) throw new Error("simulated per-crew DB failure");
+              return arrayWithChain([]);
+            }),
+          });
+        }
+        return defaultFrom();
+      }),
+    }));
+
+    const { GET } = await import("@/app/api/cron/weekly/route");
+    const req = new Request("http://localhost/api/cron/weekly");
+    const res = await GET(req as never);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.crewsFailed).toBe(1);
+    expect(body.crewsProcessed).toBe(1);
+
+    // crew-ok's challenges still get created despite crew-fail's error.
+    expect(mocks.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({ crewId: "crew-ok", type: "weekly" }),
+    );
   });
 });

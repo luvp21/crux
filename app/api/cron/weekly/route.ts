@@ -32,41 +32,50 @@ export async function GET(req: NextRequest) {
 
     let crewsProcessed = 0;
     let challengesCreated = 0;
+    let crewsFailed = 0;
+    const failedCrewIds: string[] = [];
 
     for (const crew of allCrews) {
-      crewsProcessed++;
+      try {
+        const existing = await db
+          .select()
+          .from(challenges)
+          .where(and(eq(challenges.crewId, crew.id), eq(challenges.type, "weekly"), eq(challenges.challengeDate, weekDate)));
+        if (existing.length > 0) {
+          crewsProcessed++;
+          continue;
+        }
 
-      const existing = await db
-        .select()
-        .from(challenges)
-        .where(and(eq(challenges.crewId, crew.id), eq(challenges.type, "weekly"), eq(challenges.challengeDate, weekDate)));
-      if (existing.length > 0) continue;
+        const [preference] = await db
+          .select()
+          .from(crewChallengePreferences)
+          .where(and(eq(crewChallengePreferences.crewId, crew.id), eq(crewChallengePreferences.type, "weekly")))
+          .limit(1);
+        const prefArg = preference ? { topicTag: preference.topicTag, difficulty: preference.difficulty } : null;
 
-      const [preference] = await db
-        .select()
-        .from(crewChallengePreferences)
-        .where(and(eq(crewChallengePreferences.crewId, crew.id), eq(crewChallengePreferences.type, "weekly")))
-        .limit(1);
-      const prefArg = preference ? { topicTag: preference.topicTag, difficulty: preference.difficulty } : null;
+        const picked: ChallengeCandidate[] = [];
+        for (let i = 0; i < PROBLEMS_PER_WEEK; i++) {
+          const remaining = allProblems.filter((p) => !picked.some((pp) => pp.id === p.id));
+          const next = selectChallengeProblem(remaining, prefArg, null);
+          if (!next) break;
+          picked.push(next);
+        }
 
-      const picked: ChallengeCandidate[] = [];
-      let excludeId: string | null = null;
-      for (let i = 0; i < PROBLEMS_PER_WEEK; i++) {
-        const remaining = allProblems.filter((p) => !picked.some((pp) => pp.id === p.id));
-        const next = selectChallengeProblem(remaining, prefArg, excludeId);
-        if (!next) break;
-        picked.push(next);
-        excludeId = next.id; // only prevents immediate re-pick within the loop's exclusion arg; dedup is via the filter above
-      }
+        for (const p of picked) {
+          await db.insert(challenges).values({
+            crewId: crew.id,
+            type: "weekly",
+            challengeDate: weekDate,
+            problemId: p.id,
+          });
+          challengesCreated++;
+        }
 
-      for (const p of picked) {
-        await db.insert(challenges).values({
-          crewId: crew.id,
-          type: "weekly",
-          challengeDate: weekDate,
-          problemId: p.id,
-        });
-        challengesCreated++;
+        crewsProcessed++;
+      } catch (crewErr) {
+        crewsFailed++;
+        failedCrewIds.push(crew.id);
+        console.error(`[cron/weekly] Failed to process crew ${crew.id}:`, crewErr);
       }
     }
 
@@ -75,6 +84,7 @@ export async function GET(req: NextRequest) {
       weekDate,
       crewsProcessed,
       challengesCreated,
+      crewsFailed,
     });
   } catch (err) {
     console.error("[cron/weekly] Error:", err);

@@ -28,52 +28,60 @@ export async function GET(req: NextRequest) {
 
     let crewsProcessed = 0;
     let challengesCreated = 0;
+    let crewsFailed = 0;
+    const failedCrewIds: string[] = [];
 
     for (const crew of allCrews) {
-      crewsProcessed++;
-
-      // ---- Challenge selection ----
-      const [existing] = await db
-        .select()
-        .from(challenges)
-        .where(and(eq(challenges.crewId, crew.id), eq(challenges.type, "daily"), eq(challenges.challengeDate, tomorrow)))
-        .limit(1);
-
-      if (!existing) {
-        const [todayChallenge] = await db
+      try {
+        // ---- Challenge selection ----
+        const [existing] = await db
           .select()
           .from(challenges)
-          .where(and(eq(challenges.crewId, crew.id), eq(challenges.type, "daily"), eq(challenges.challengeDate, today)))
+          .where(and(eq(challenges.crewId, crew.id), eq(challenges.type, "daily"), eq(challenges.challengeDate, tomorrow)))
           .limit(1);
 
-        const [preference] = await db
-          .select()
-          .from(crewChallengePreferences)
-          .where(and(eq(crewChallengePreferences.crewId, crew.id), eq(crewChallengePreferences.type, "daily")))
-          .limit(1);
+        if (!existing) {
+          const [todayChallenge] = await db
+            .select()
+            .from(challenges)
+            .where(and(eq(challenges.crewId, crew.id), eq(challenges.type, "daily"), eq(challenges.challengeDate, today)))
+            .limit(1);
 
-        const picked = selectChallengeProblem(
-          allProblems,
-          preference ? { topicTag: preference.topicTag, difficulty: preference.difficulty } : null,
-          todayChallenge?.problemId ?? null,
-        );
+          const [preference] = await db
+            .select()
+            .from(crewChallengePreferences)
+            .where(and(eq(crewChallengePreferences.crewId, crew.id), eq(crewChallengePreferences.type, "daily")))
+            .limit(1);
 
-        if (picked) {
-          await db.insert(challenges).values({
-            crewId: crew.id,
-            type: "daily",
-            challengeDate: tomorrow,
-            problemId: picked.id,
-          });
-          challengesCreated++;
+          const picked = selectChallengeProblem(
+            allProblems,
+            preference ? { topicTag: preference.topicTag, difficulty: preference.difficulty } : null,
+            todayChallenge?.problemId ?? null,
+          );
+
+          if (picked) {
+            await db.insert(challenges).values({
+              crewId: crew.id,
+              type: "daily",
+              challengeDate: tomorrow,
+              problemId: picked.id,
+            });
+            challengesCreated++;
+          }
         }
-      }
 
-      // ---- Streak reset ----
-      const members = await db.select().from(crewMembers).where(eq(crewMembers.crewId, crew.id));
-      const anyoneSolvedToday = members.some((m) => m.lastCompleted === today);
-      if (!anyoneSolvedToday) {
-        await db.update(crews).set({ currentStreak: 0 }).where(eq(crews.id, crew.id));
+        // ---- Streak reset ----
+        const members = await db.select().from(crewMembers).where(eq(crewMembers.crewId, crew.id));
+        const anyoneSolvedToday = members.some((m) => m.lastCompleted === today);
+        if (!anyoneSolvedToday) {
+          await db.update(crews).set({ currentStreak: 0 }).where(eq(crews.id, crew.id));
+        }
+
+        crewsProcessed++;
+      } catch (crewErr) {
+        crewsFailed++;
+        failedCrewIds.push(crew.id);
+        console.error(`[cron/daily] Failed to process crew ${crew.id}:`, crewErr);
       }
     }
 
@@ -81,6 +89,7 @@ export async function GET(req: NextRequest) {
       message: "Daily challenges processed",
       crewsProcessed,
       challengesCreated,
+      crewsFailed,
       date: tomorrow,
     });
   } catch (err) {
