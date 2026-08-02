@@ -23,7 +23,7 @@ CREATE TABLE "challenges" (
 	"type" "challenge_type" NOT NULL,
 	"challenge_date" date NOT NULL,
 	"problem_id" text NOT NULL,
-	CONSTRAINT "challenges_crew_id_type_challenge_date_unique" UNIQUE("crew_id","type","challenge_date")
+	CONSTRAINT "challenges_crew_id_type_challenge_date_problem_id_unique" UNIQUE("crew_id","type","challenge_date","problem_id")
 );
 --> statement-breakpoint
 CREATE TABLE "code_checkpoints" (

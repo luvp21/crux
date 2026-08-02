@@ -150,7 +150,7 @@ export const challenges = pgTable(
       .notNull()
       .references(() => problems.id, { onDelete: "cascade" }),
   },
-  (t) => [unique().on(t.crewId, t.type, t.challengeDate)],
+  (t) => [unique().on(t.crewId, t.type, t.challengeDate, t.problemId)],
 );
 
 export const crewChallengePreferences = pgTable(

@@ -1,5 +1,5 @@
 {
-  "id": "682e45b9-e754-4da1-b699-e6eada53ad4a",
+  "id": "1474d37a-3d44-415a-a8d9-deed6797413a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -172,13 +172,14 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "challenges_crew_id_type_challenge_date_unique": {
-          "name": "challenges_crew_id_type_challenge_date_unique",
+        "challenges_crew_id_type_challenge_date_problem_id_unique": {
+          "name": "challenges_crew_id_type_challenge_date_problem_id_unique",
           "nullsNotDistinct": false,
           "columns": [
             "crew_id",
             "type",
-            "challenge_date"
+            "challenge_date",
+            "problem_id"
           ]
         }
       },
