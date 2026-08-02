@@ -135,28 +135,31 @@ export async function POST(req: NextRequest) {
       );
 
       if (!res.ok) {
-        return { verdict: "runtime_error" as Verdict, stdout: "Judge0 error", time: 0 };
+        return { verdict: "runtime_error" as Verdict, stdout: "Judge0 error", time: 0, passed: false };
       }
 
       const result = await res.json();
       const stdout = result.stdout ? Buffer.from(result.stdout, "base64").toString().trim() : "";
       const statusId = result.status?.id ?? 0;
-      const passed = stdout === tc.expected.trim();
+      const outputMatches = stdout === tc.expected.trim();
 
       let caseVerdict: Verdict = "accepted";
       if (statusId === 5) caseVerdict = "time_limit_exceeded";
       else if (statusId >= 6 && statusId <= 12) caseVerdict = "runtime_error";
-      else if (!passed) caseVerdict = "wrong_answer";
+      else if (!outputMatches) caseVerdict = "wrong_answer";
 
-      return { verdict: caseVerdict, stdout, time: parseFloat(result.time ?? "0") * 1000, passed };
+      // `passed` reflects the case verdict, not just the raw output match — a case
+      // that times out (or errors) is never "passed" even if its stdout happened to
+      // match before the timeout/error occurred.
+      return { verdict: caseVerdict, stdout, time: parseFloat(result.time ?? "0") * 1000, passed: caseVerdict === "accepted" };
     }
 
     for (let i = 0; i < testCases.length; i++) {
       const tc = testCases[i];
-      const { verdict: caseVerdict, stdout, time } = await runCase(tc);
+      const { verdict: caseVerdict, stdout, time, passed } = await runCase(tc);
       totalTime += time;
       if (caseVerdict !== "accepted" && overallVerdict === "accepted") overallVerdict = caseVerdict;
-      results.push({ case: i + 1, input: tc.input, expected: tc.expected, got: stdout, passed: stdout === tc.expected.trim() });
+      results.push({ case: i + 1, input: tc.input, expected: tc.expected, got: stdout, passed });
     }
 
     for (const tc of hiddenTestCases) {

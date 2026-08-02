@@ -164,4 +164,34 @@ describe("POST /api/submit (real Judge0 branch, JUDGE0_URL set)", () => {
     const bodyText = JSON.stringify(body);
     expect(bodyText).not.toContain("wrong_output");
   });
+
+  it("marks a visible case as not passed when it times out, even if its stdout happens to match the expected output", async () => {
+    currentProblem = REAL_JUDGE0_PROBLEM;
+
+    // statusId 5 = Time Limit Exceeded. stdout coincidentally equals the expected
+    // value, which previously made the visible-case loop's own recomputed
+    // `passed: stdout === tc.expected.trim()` report `true` despite the TLE.
+    const fetchMock = vi.fn();
+    fetchMock
+      .mockResolvedValueOnce(judge0Response("2", 5)) // visible case: TLE, stdout coincidentally matches
+      .mockResolvedValueOnce(judge0Response("SECRET_VALUE_998")); // hidden case: passes normally
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    vi.resetModules();
+    const { POST } = await import("@/app/api/submit/route");
+    const req = new Request("http://localhost/api/submit", {
+      method: "POST",
+      body: JSON.stringify({
+        problemId: "p1",
+        crewId: "crew-1",
+        code: "class Solution:\n    def solve(self, x):\n        return x",
+        language: "python",
+      }),
+    });
+    const res = await POST(req as never);
+    const body = await res.json();
+
+    expect(body.results[0]).toMatchObject({ passed: false });
+    expect(body.verdict).toBe("time_limit_exceeded");
+  });
 });
