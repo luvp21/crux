@@ -62,20 +62,3 @@ export async function updateStreaksAfterSolve(userId: string, crewId: string) {
     // Don't throw — streak failure shouldn't block submission
   }
 }
-
-/**
- * Compute crew completion percentage for today's challenge.
- * Returns { solved, total } where total = crew member count.
- */
-export async function crewCompletionToday(crewId: string) {
-  const today = new Date().toISOString().slice(0, 10);
-
-  const members = await db
-    .select()
-    .from(crewMembers)
-    .where(eq(crewMembers.crewId, crewId));
-
-  const solved = members.filter((m) => m.lastCompleted === today).length;
-
-  return { solved, total: members.length };
-}
