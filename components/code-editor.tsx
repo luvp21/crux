@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useCallback } from "react";
 import Editor, { type OnMount, type OnChange } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 
@@ -11,64 +11,38 @@ const LANGUAGE_MAP: Record<string, string> = {
   "JavaScript": "javascript",
 };
 
-// Theme definition matching Crux CSS variables
+// Theme definition matching Crux's cooler app palette (app/globals.css :root).
+// Dark-only per Plan 3 Task 1 — there is no light-mode counterpart anymore.
 function defineThemes(monaco: Parameters<OnMount>[1]) {
   monaco.editor.defineTheme("crux-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [
-      { token: "keyword", foreground: "c9a84c" },
+      { token: "keyword", foreground: "eae23c" },
       { token: "string", foreground: "a3b18a" },
-      { token: "comment", foreground: "6a6a5f" },
-      { token: "number", foreground: "c9a84c" },
-      { token: "type", foreground: "d4b462" },
-      { token: "function", foreground: "e8dcc8" },
+      { token: "comment", foreground: "9a968e" },
+      { token: "number", foreground: "eae23c" },
+      { token: "type", foreground: "eae27a" },
+      { token: "function", foreground: "f6f5f3" },
     ],
     colors: {
-      "editor.background": "#1e1d1a",
-      "editor.foreground": "#ece8e0",
-      "editorLineNumber.foreground": "#6a6a5f",
-      "editorLineNumber.activeForeground": "#c9a84c",
-      "editor.selectionBackground": "#c9a84c40",
+      "editor.background": "#1e2024",
+      "editor.foreground": "#f6f5f3",
+      "editorLineNumber.foreground": "#9a968e",
+      "editorLineNumber.activeForeground": "#eae23c",
+      "editor.selectionBackground": "#eae23c40",
       "editor.lineHighlightBackground": "#ffffff06",
-      "editorCursor.foreground": "#c9a84c",
-      "editorIndentGuide.background": "#2e2d2a",
-      "editorIndentGuide.activeBackground": "#4a4940",
-      "editor.selectionHighlightBackground": "#c9a84c20",
-      "editorWidget.background": "#262520",
-      "editorWidget.border": "#3e3d38",
-      "editorSuggestWidget.background": "#262520",
-      "editorSuggestWidget.border": "#3e3d38",
-      "editorSuggestWidget.selectedBackground": "#3e3d38",
-      "scrollbarSlider.background": "#3e3d3840",
-      "scrollbarSlider.hoverBackground": "#3e3d3880",
-    },
-  });
-
-  monaco.editor.defineTheme("crux-light", {
-    base: "vs",
-    inherit: true,
-    rules: [
-      { token: "keyword", foreground: "7a5d1e" },
-      { token: "string", foreground: "5a7040" },
-      { token: "comment", foreground: "8a8a7f" },
-      { token: "number", foreground: "7a5d1e" },
-      { token: "type", foreground: "8a6e2e" },
-      { token: "function", foreground: "2e2d2a" },
-    ],
-    colors: {
-      "editor.background": "#fafaf8",
-      "editor.foreground": "#2e2d2a",
-      "editorLineNumber.foreground": "#b0b0a8",
-      "editorLineNumber.activeForeground": "#7a5d1e",
-      "editor.selectionBackground": "#7a5d1e30",
-      "editor.lineHighlightBackground": "#00000006",
-      "editorCursor.foreground": "#7a5d1e",
-      "editorIndentGuide.background": "#e8e8e4",
-      "editorIndentGuide.activeBackground": "#c8c8c0",
-      "editorWidget.background": "#f0f0ec",
-      "editorWidget.border": "#dcdcd8",
-      "scrollbarSlider.background": "#c8c8c040",
+      "editorCursor.foreground": "#eae23c",
+      "editorIndentGuide.background": "#232427",
+      "editorIndentGuide.activeBackground": "#585b62",
+      "editor.selectionHighlightBackground": "#eae23c20",
+      "editorWidget.background": "#16171b",
+      "editorWidget.border": "#585b62",
+      "editorSuggestWidget.background": "#16171b",
+      "editorSuggestWidget.border": "#585b62",
+      "editorSuggestWidget.selectedBackground": "#1e2024",
+      "scrollbarSlider.background": "#585b6240",
+      "scrollbarSlider.hoverBackground": "#585b6280",
     },
   });
 }
@@ -91,10 +65,7 @@ export function CodeEditor({
     editorRef.current = editor;
     monacoRef.current = monaco;
     defineThemes(monaco);
-
-    // Set initial theme based on current HTML data-theme
-    const isDark = document.documentElement.dataset.theme !== "light";
-    monaco.editor.setTheme(isDark ? "crux-dark" : "crux-light");
+    monaco.editor.setTheme("crux-dark");
 
     editor.updateOptions({
       fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', ui-monospace, monospace",
@@ -133,23 +104,6 @@ export function CodeEditor({
     },
     [onChange],
   );
-
-  // Watch for theme changes on the <html> element
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      if (monacoRef.current) {
-        const isDark = document.documentElement.dataset.theme !== "light";
-        monacoRef.current.editor.setTheme(
-          isDark ? "crux-dark" : "crux-light",
-        );
-      }
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
 
   return (
     <Editor
