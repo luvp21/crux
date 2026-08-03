@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
           and(
             eq(codeCheckpoints.userId, session.user.id),
             eq(codeCheckpoints.problemId, problemId),
+            eq(codeCheckpoints.crewId, crewId),
             isNull(codeCheckpoints.submissionId),
           ),
         );
@@ -204,6 +205,7 @@ export async function POST(req: NextRequest) {
         and(
           eq(codeCheckpoints.userId, session.user.id),
           eq(codeCheckpoints.problemId, problemId),
+          eq(codeCheckpoints.crewId, crewId),
           isNull(codeCheckpoints.submissionId),
         ),
       );

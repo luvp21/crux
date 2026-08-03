@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
+
+const dialect = new PgDialect();
 
 const MOCK_MODE_PROBLEM = {
   id: "p1",
@@ -21,6 +24,17 @@ let currentProblem: typeof MOCK_MODE_PROBLEM | typeof REAL_JUDGE0_PROBLEM = MOCK
 // Set by the mocked db.update(...).set(...).where(...) chain so tests can
 // assert which submission id the tagging call was invoked with.
 let taggedWith: string | null = null;
+
+// The tagging update should only reach checkpoints matching the caller's own
+// (userId, problemId, crewId) — this fake table lets tests assert the real
+// WHERE predicate excludes a different crew's (or user's) open checkpoint,
+// not just that *some* update call happened (finding #4 / #6).
+let taggedCheckpointIds: string[] = [];
+const FAKE_OPEN_CHECKPOINTS = [
+  { id: "chk-1", userId: "u1", problemId: "p1", crewId: "crew-1", submissionId: null },
+  { id: "chk-2", userId: "u1", problemId: "p1", crewId: "crew-2", submissionId: null }, // different crew — must NOT be tagged
+  { id: "chk-3", userId: "other-user", problemId: "p1", crewId: "crew-1", submissionId: null }, // different user — must NOT be tagged
+];
 
 vi.mock("@/auth", () => ({
   auth: vi.fn(async () => ({ user: { id: "u1" } })),
@@ -46,8 +60,17 @@ vi.mock("@/db", () => ({
     })),
     update: vi.fn(() => ({
       set: vi.fn((vals: { submissionId: string }) => ({
-        where: vi.fn(async () => {
+        where: vi.fn(async (cond: unknown) => {
           taggedWith = vals.submissionId;
+          const { params } = dialect.sqlToQuery(cond as never);
+          const [userId, problemId, crewId] = params as string[];
+          taggedCheckpointIds = FAKE_OPEN_CHECKPOINTS.filter(
+            (c) =>
+              c.userId === userId &&
+              c.problemId === problemId &&
+              c.crewId === crewId &&
+              c.submissionId === null,
+          ).map((c) => c.id);
           return [];
         }),
       })),
@@ -73,8 +96,9 @@ describe("POST /api/submit (mock mode, no JUDGE0_URL)", () => {
     expect(bodyText).not.toContain("SECRET_VALUE_998");
   });
 
-  it("tags open checkpoints with the new submission id", async () => {
+  it("tags open checkpoints with the new submission id, scoped to this crew (excludes other crews and users)", async () => {
     taggedWith = null;
+    taggedCheckpointIds = [];
     const { POST } = await import("@/app/api/submit/route");
     const req = new Request("http://localhost/api/submit", {
       method: "POST",
@@ -82,6 +106,9 @@ describe("POST /api/submit (mock mode, no JUDGE0_URL)", () => {
     });
     await POST(req as never);
     expect(taggedWith).toBe("sub-1");
+    expect(taggedCheckpointIds).toEqual(["chk-1"]);
+    expect(taggedCheckpointIds).not.toContain("chk-2"); // different crewId
+    expect(taggedCheckpointIds).not.toContain("chk-3"); // different userId
   });
 });
 

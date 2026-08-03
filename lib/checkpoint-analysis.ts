@@ -19,9 +19,17 @@ export function computeTimeSpentLabel(checkpoints: Checkpoint[], submittedAt: Da
   const totalMinutes = Math.round(ms / 60000);
   if (totalMinutes < 60) return `${totalMinutes}m`;
 
-  const hours = Math.floor(totalMinutes / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  return `${hours}h ${minutes}m`;
+  if (totalHours < 24) return `${totalHours}h ${minutes}m`;
+
+  // Defensive: crew-scoping at submit time (app/api/submit/route.ts) should
+  // prevent a stale/orphaned checkpoint from ever being tagged to a much
+  // later submission, but a multi-day gap is formatted sanely if one slips
+  // through rather than rendering as an absurd "168h 0m".
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  return `${days}d ${hours}h`;
 }
 
 export function hasPasteFlag(checkpoints: Checkpoint[]): boolean {

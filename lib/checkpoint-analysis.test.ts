@@ -30,6 +30,25 @@ describe("computeTimeSpentLabel", () => {
     ];
     expect(computeTimeSpentLabel(checkpoints, submittedAt)).toBe("< 1m");
   });
+
+  it("formats a multi-day gap as '<d>d <h>h'", () => {
+    // A defensive tier in case a stale checkpoint slips past crew-scoped
+    // tagging at submit time (app/api/submit/route.ts) and ends up attached
+    // to a submission days later.
+    const submittedAt = new Date("2026-08-05T13:00:00Z");
+    const checkpoints: Checkpoint[] = [
+      { createdAt: new Date("2026-08-02T10:00:00Z"), isPasteFlag: false, insertedChars: 5 },
+    ];
+    expect(computeTimeSpentLabel(checkpoints, submittedAt)).toBe("3d 3h");
+  });
+
+  it("formats an exact multiple of 24h with 0h remainder", () => {
+    const submittedAt = new Date("2026-08-04T10:00:00Z");
+    const checkpoints: Checkpoint[] = [
+      { createdAt: new Date("2026-08-02T10:00:00Z"), isPasteFlag: false, insertedChars: 5 },
+    ];
+    expect(computeTimeSpentLabel(checkpoints, submittedAt)).toBe("2d 0h");
+  });
 });
 
 describe("hasPasteFlag", () => {
