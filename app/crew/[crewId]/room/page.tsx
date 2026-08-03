@@ -4,6 +4,7 @@ import { requireSession, requireCrewMember } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { crews, crewMembers } from "@/db/schema";
 import { getTodaysProblem, getUserSubmissions } from "@/lib/problems";
+import { getCrewSolutionsForProblem } from "@/lib/crew-solutions";
 import { RoomClient } from "./room-client";
 
 export default async function RoomPage({ params }: { params: { crewId: string } }) {
@@ -21,6 +22,17 @@ export default async function RoomPage({ params }: { params: { crewId: string } 
   const problem = await getTodaysProblem(params.crewId);
   const userSubs = await getUserSubmissions(session.user.id, problem.id);
 
+  const solutionRows = (await getCrewSolutionsForProblem(session.user.id, params.crewId, problem.id)) ?? [];
+  const crewSolutions = solutionRows.map((row) =>
+    row.status === "visible"
+      ? {
+          userId: row.userId,
+          status: row.status,
+          link: `/crew/${params.crewId}/problems/${problem.id}/solutions/${row.userId}`,
+        }
+      : { userId: row.userId, status: row.status, link: null },
+  );
+
   return (
     <RoomClient
       crewId={crew.id}
@@ -36,6 +48,7 @@ export default async function RoomPage({ params }: { params: { crewId: string } 
         runtime: s.runtime,
         submittedAt: s.submittedAt.toISOString(),
       }))}
+      crewSolutions={crewSolutions}
     />
   );
 }

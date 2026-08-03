@@ -55,6 +55,12 @@ interface SubmissionRecord {
   submittedAt: string;
 }
 
+interface CrewSolutionEntry {
+  userId: string;
+  status: "not_started" | "locked" | "visible";
+  link: string | null;
+}
+
 export function RoomClient({
   crewId,
   crewName,
@@ -64,6 +70,7 @@ export function RoomClient({
   userId,
   userName,
   previousSubmissions,
+  crewSolutions,
 }: {
   crewId: string;
   crewName: string;
@@ -73,6 +80,7 @@ export function RoomClient({
   userId: string;
   userName: string;
   previousSubmissions: SubmissionRecord[];
+  crewSolutions: CrewSolutionEntry[];
 }) {
   const [docTab, setDocTab] = useState<DocTab>("Problem");
   const [language, setLanguage] = useState(LANGUAGES[0]);
@@ -1116,6 +1124,7 @@ export function RoomClient({
             </div>
             {partyMembers.map((m) => {
               const dotColor = m.status === "solved" ? "var(--accent)" : m.status === "coding" ? "var(--fg)" : "var(--line)";
+              const solution = crewSolutions.find((c) => c.userId === m.userId);
               return (
                 <div
                   key={m.userId}
@@ -1146,6 +1155,29 @@ export function RoomClient({
                   >
                     {m.status}
                   </span>
+                  {solution?.status === "visible" && solution.link && (
+                    <Link
+                      href={solution.link}
+                      style={{
+                        fontSize: 10,
+                        fontFamily: "var(--font-jetbrains-mono)",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      view &rarr;
+                    </Link>
+                  )}
+                  {solution?.status === "locked" && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontFamily: "var(--font-jetbrains-mono)",
+                        color: "var(--line)",
+                      }}
+                    >
+                      locked
+                    </span>
+                  )}
                 </div>
               );
             })}

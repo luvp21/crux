@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession, requireCrewMember } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { crewMembers, crews, users } from "@/db/schema";
+import { crewMembers, crews, users, codeCheckpoints } from "@/db/schema";
 import { getTodaysProblem, getWeeklyProblems } from "@/lib/problems";
 import { getCrewSolutionsForProblem } from "@/lib/crew-solutions";
+import { PulseStrip } from "@/components/pulse-strip";
 
 export default async function CrewHomePage({ params }: { params: { crewId: string } }) {
   const session = await requireSession();
@@ -46,19 +47,45 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
     : [];
   const nameById = new Map(memberUsers.map((u) => [u.id, u.name ?? u.email]));
 
+  // Batch-fetch checkpoints for every visible row's submission in one query
+  // (not one per row) to keep the crew log's Pulse Strips N+1-safe.
+  const visibleSubmissionIds = crewSolutions
+    .filter((row): row is Extract<typeof row, { status: "visible" }> => row.status === "visible")
+    .map((row) => row.submissionId);
+
+  const checkpointsBySubmission = new Map<string, { insertedChars: number; isPasteFlag: boolean }[]>();
+  if (visibleSubmissionIds.length > 0) {
+    const checkpointRows = await db
+      .select({
+        submissionId: codeCheckpoints.submissionId,
+        insertedChars: codeCheckpoints.insertedChars,
+        isPasteFlag: codeCheckpoints.isPasteFlag,
+      })
+      .from(codeCheckpoints)
+      .where(inArray(codeCheckpoints.submissionId, visibleSubmissionIds))
+      .orderBy(codeCheckpoints.createdAt);
+    for (const row of checkpointRows) {
+      if (!row.submissionId) continue;
+      const list = checkpointsBySubmission.get(row.submissionId) ?? [];
+      list.push({ insertedChars: row.insertedChars, isPasteFlag: row.isPasteFlag });
+      checkpointsBySubmission.set(row.submissionId, list);
+    }
+  }
+
   const activity = crewSolutions.map((row) => {
     const displayName = nameById.get(row.userId) ?? "member";
     if (row.status === "not_started") {
-      return { userId: row.userId, label: `${displayName} — not started`, link: null };
+      return { userId: row.userId, label: `${displayName} — not started`, link: null, checkpoints: null };
     }
     if (row.status === "locked") {
-      return { userId: row.userId, label: `${displayName} — locked — submit today's problem to see this`, link: null };
+      return { userId: row.userId, label: `${displayName} — locked — submit today's problem to see this`, link: null, checkpoints: null };
     }
     const verb = row.verdict === "accepted" ? "solved" : "attempted";
     return {
       userId: row.userId,
       label: `${displayName} — ${verb} · ${getTimeAgo(new Date(row.submittedAt))}`,
       link: `/crew/${params.crewId}/problems/${todaysProblem.id}/solutions/${row.userId}`,
+      checkpoints: checkpointsBySubmission.get(row.submissionId) ?? [],
     };
   });
 
@@ -186,6 +213,7 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
               >
                 {a.label}
               </span>
+              {a.checkpoints && <PulseStrip checkpoints={a.checkpoints} />}
               {a.link && (
                 <Link href={a.link} style={{ fontSize: "10.5px", color: "var(--accent)" }}>
                   view &rarr;
