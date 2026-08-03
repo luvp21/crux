@@ -24,13 +24,11 @@ export default async function CrewSetupPage() {
           </div>
           <h2
             style={{
-              fontFamily: "var(--font-archivo), sans-serif",
-              fontVariationSettings: "'wdth' 70",
+              fontFamily: "var(--font-display), serif",
               fontWeight: 800,
               fontSize: 40,
               lineHeight: 1,
               letterSpacing: "-0.01em",
-              textTransform: "uppercase",
               margin: "0 0 12px",
             }}
           >
@@ -59,11 +57,9 @@ export default async function CrewSetupPage() {
             </div>
             <h3
               style={{
-                fontFamily: "var(--font-archivo), sans-serif",
-                fontVariationSettings: "'wdth' 70",
+                fontFamily: "var(--font-display), serif",
                 fontWeight: 700,
                 fontSize: 20,
-                textTransform: "uppercase",
                 margin: "0 0 10px",
               }}
             >
@@ -121,11 +117,9 @@ export default async function CrewSetupPage() {
             </div>
             <h3
               style={{
-                fontFamily: "var(--font-archivo), sans-serif",
-                fontVariationSettings: "'wdth' 70",
+                fontFamily: "var(--font-display), serif",
                 fontWeight: 700,
                 fontSize: 20,
-                textTransform: "uppercase",
                 margin: "0 0 10px",
               }}
             >

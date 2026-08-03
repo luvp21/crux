@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ThemeToggle } from "@/components/theme-toggle";
 import type { Problem } from "@/lib/problems";
 import { usePartyRoom } from "@/lib/partykit";
 
@@ -384,7 +383,6 @@ export function RoomClient({
           }}
         >
           <span style={{ color: "var(--accent)" }}>streak {streak}</span>
-          <ThemeToggle style={{ padding: "6px 10px", fontSize: 10 }} />
         </div>
       </div>
 
@@ -454,8 +452,7 @@ export function RoomClient({
                 </div>
                 <h3
                   style={{
-                    fontFamily: "var(--font-archivo), sans-serif",
-                    fontVariationSettings: "'wdth' 70",
+                    fontFamily: "var(--font-display), serif",
                     fontWeight: 700,
                     fontSize: 22,
                     lineHeight: 1.1,

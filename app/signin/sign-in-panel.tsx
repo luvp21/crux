@@ -11,11 +11,10 @@ export function SignInPanel({ devMode = false }: { devMode?: boolean }) {
     <div style={{ width: "100%", maxWidth: 400, animation: "up 500ms ease both" }}>
       <div
         style={{
-          fontFamily: "var(--font-archivo), sans-serif",
+          fontFamily: "var(--font-display), serif",
           fontWeight: 800,
           fontSize: 16,
           letterSpacing: "0.02em",
-          fontVariationSettings: "'wdth' 70",
           marginBottom: 40,
         }}
       >
@@ -34,8 +33,7 @@ export function SignInPanel({ devMode = false }: { devMode?: boolean }) {
       </div>
       <h2
         style={{
-          fontFamily: "var(--font-archivo), sans-serif",
-          fontVariationSettings: "'wdth' 70",
+          fontFamily: "var(--font-display), serif",
           fontWeight: 800,
           fontSize: 34,
           lineHeight: 1,
