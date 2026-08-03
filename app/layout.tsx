@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { Archivo, JetBrains_Mono } from "next/font/google";
+import { Instrument_Serif, Inter, JetBrains_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const archivo = Archivo({
+const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
-  variable: "--font-archivo",
+  weight: ["400"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -22,27 +29,16 @@ export const metadata: Metadata = {
   description: "Practice DSA with your crew — one room, one problem, one shared streak.",
 };
 
-// Read the persisted theme before paint to avoid a flash of the wrong theme.
-const THEME_INIT_SCRIPT = `
-  try {
-    var t = localStorage.getItem('theme');
-    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
-  } catch (e) {}
-`;
-
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-theme="dark">
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-      </head>
+    <html lang="en">
       <body
-        className={`${archivo.variable} ${jetbrainsMono.variable}`}
-        style={{ fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace" }}
+        className={`${instrumentSerif.variable} ${inter.variable} ${jetbrainsMono.variable}`}
+        style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}
       >
         <Providers>{children}</Providers>
       </body>

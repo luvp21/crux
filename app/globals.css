@@ -1,25 +1,13 @@
 :root {
-  --bg: oklch(0.152 0.004 70);
-  --panel: oklch(0.192 0.005 70);
-  --raise: oklch(0.225 0.005 70);
-  --fg: oklch(0.965 0.004 85);
-  --muted: oklch(0.635 0.008 75);
-  --line: oklch(0.298 0.006 70);
-  --accent: oklch(0.81 0.12 78);
-  --accent-fg: oklch(0.17 0.02 78);
-  --ok: oklch(0.81 0.12 78);
-}
-
-html[data-theme="light"] {
-  --bg: oklch(0.985 0.003 85);
-  --panel: oklch(0.962 0.004 85);
-  --raise: oklch(1 0 0);
-  --fg: oklch(0.18 0.006 70);
-  --muted: oklch(0.475 0.008 75);
-  --line: oklch(0.878 0.005 80);
-  --accent: oklch(0.58 0.11 68);
-  --accent-fg: oklch(0.99 0.01 85);
-  --ok: oklch(0.55 0.1 68);
+  --bg: #0c0c0e;
+  --panel: #16171b;
+  --raise: #1e2024;
+  --fg: #f6f5f3;
+  --muted: #9a968e;
+  --line: #232427;
+  --accent: #eae23c;
+  --accent-fg: #161503;
+  --ok: #22c55e;
 }
 
 html,
@@ -101,40 +89,6 @@ button:active {
   }
   50% {
     opacity: 0.35;
-  }
-}
-
-@keyframes mark {
-  from {
-    opacity: 0;
-    transform: scale(0.2) rotate(-45deg);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes rise {
-  from {
-    transform: translateY(105%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes blink {
-  0%,
-  45% {
-    opacity: 1;
-  }
-  50%,
-  95% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
   }
 }
 
