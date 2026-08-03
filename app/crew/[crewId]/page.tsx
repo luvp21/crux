@@ -114,7 +114,10 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
               margin: "0 0 6px",
             }}
           >
-            today &middot; {members.length} in the crew
+            today &middot; {members.length} in the crew &middot;{" "}
+            <span style={{ color: "var(--accent)" }}>
+              {solvedToday.length} of {members.length} solved
+            </span>
           </p>
           <p style={{ fontFamily: "var(--font-inter)", fontWeight: 600, fontSize: 16, color: "var(--fg)", margin: "0 0 4px" }}>
             {todaysProblem.title}
