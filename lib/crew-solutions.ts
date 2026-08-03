@@ -1,6 +1,7 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { crewMembers, submissions } from "@/db/schema";
+import { canViewSolution } from "@/lib/solution-gate";
 
 export type SolutionRow =
   | { userId: string; status: "not_started" }
@@ -33,7 +34,11 @@ export async function getCrewSolutionsForProblem(
     if (!existing || s.submittedAt > existing.submittedAt) latestByUser.set(s.userId, s);
   }
 
-  const unlocked = latestByUser.has(requesterId);
+  // Delegate to the same gate `lib/submission-timeline.ts` uses, rather than
+  // reimplementing "has the requester submitted" locally — see
+  // lib/solution-gate.ts for why (finding #1 in the final-review fix wave:
+  // the two gates had drifted out of sync).
+  const unlocked = await canViewSolution(requesterId, crewId, problemId);
 
   return members.map((member): SolutionRow => {
     const latest = latestByUser.get(member.userId);

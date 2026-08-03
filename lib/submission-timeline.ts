@@ -1,11 +1,13 @@
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { submissions, codeCheckpoints } from "@/db/schema";
 import { computeTimeSpentLabel } from "@/lib/checkpoint-analysis";
+import { canViewSolution } from "@/lib/solution-gate";
 
 export type TimelineResult =
   | {
       ok: true;
+      code: string;
       timeSpentLabel: string;
       checkpoints: { code: string; createdAt: string; insertedChars: number; isPasteFlag: boolean }[];
     }
@@ -13,8 +15,12 @@ export type TimelineResult =
 
 /**
  * Fetches a submission's checkpoint timeline, gated: the requester must be
- * the submission's own author, or must have submitted their own attempt on
- * the same problem.
+ * the submission's own author, or pass `canViewSolution` for the
+ * submission's own `crewId` — i.e. currently a member of that crew AND
+ * has their own submission for that exact (crewId, problemId) pair. Using
+ * the submission's own crewId (not any crewId supplied by the caller) is
+ * what prevents a submission id that was ever visible in one crew context
+ * from staying visible forever via a different crew or after leaving.
  */
 export async function getSubmissionTimeline(requesterId: string, submissionId: string): Promise<TimelineResult> {
   const [submission] = await db.select().from(submissions).where(eq(submissions.id, submissionId)).limit(1);
@@ -23,12 +29,8 @@ export async function getSubmissionTimeline(requesterId: string, submissionId: s
   }
 
   if (submission.userId !== requesterId) {
-    const [ownAttempt] = await db
-      .select()
-      .from(submissions)
-      .where(and(eq(submissions.userId, requesterId), eq(submissions.problemId, submission.problemId)))
-      .limit(1);
-    if (!ownAttempt) {
+    const canView = await canViewSolution(requesterId, submission.crewId, submission.problemId);
+    if (!canView) {
       return { ok: false, status: 403 };
     }
   }
@@ -41,6 +43,7 @@ export async function getSubmissionTimeline(requesterId: string, submissionId: s
 
   return {
     ok: true,
+    code: submission.code,
     timeSpentLabel: computeTimeSpentLabel(checkpoints, submission.submittedAt),
     checkpoints: checkpoints.map((c) => ({
       code: c.code,

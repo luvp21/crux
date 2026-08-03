@@ -21,7 +21,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: message }, { status: result.status });
     }
 
-    return NextResponse.json({ timeSpentLabel: result.timeSpentLabel, checkpoints: result.checkpoints });
+    return NextResponse.json({
+      code: result.code,
+      timeSpentLabel: result.timeSpentLabel,
+      checkpoints: result.checkpoints,
+    });
   } catch (err) {
     console.error("[submissions/timeline] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

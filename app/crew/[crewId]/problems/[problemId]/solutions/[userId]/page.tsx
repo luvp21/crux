@@ -26,7 +26,12 @@ export default async function SolutionDetailPage({
     notFound();
   }
 
-  const latestCode = timeline.checkpoints.at(-1)?.code ?? "";
+  // The actually-submitted code (submissions.code), not the last checkpoint:
+  // a fast solve can have zero checkpoints, and the checkpoint posted during
+  // handleSubmit is fire-and-forget so it can lose a race against submission
+  // creation. `timeline.checkpoints` stays checkpoint-based for the Pulse
+  // Strip waveform and time-spent label only.
+  const submittedCode = timeline.code;
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 28px" }}>
@@ -47,7 +52,7 @@ export default async function SolutionDetailPage({
           whiteSpace: "pre",
         }}
       >
-        {latestCode}
+        {submittedCode}
       </pre>
     </div>
   );
