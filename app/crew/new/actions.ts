@@ -1,27 +1,15 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth-helpers";
 import { generateInviteCode } from "@/lib/invite-code";
 import { db } from "@/db";
 import { crewMembers, crews } from "@/db/schema";
 
-async function existingCrewId(userId: string) {
-  const [membership] = await db
-    .select({ crewId: crewMembers.crewId })
-    .from(crewMembers)
-    .where(eq(crewMembers.userId, userId))
-    .limit(1);
-  return membership?.crewId ?? null;
-}
-
 export async function createCrew(formData: FormData) {
   const session = await requireSession();
   const userId = session.user.id;
-
-  const existing = await existingCrewId(userId);
-  if (existing) redirect(`/crew/${existing}`);
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) throw new Error("Crew name is required");
@@ -52,9 +40,6 @@ export async function joinCrew(formData: FormData) {
   const session = await requireSession();
   const userId = session.user.id;
 
-  const existing = await existingCrewId(userId);
-  if (existing) redirect(`/crew/${existing}`);
-
   const code = String(formData.get("code") ?? "")
     .trim()
     .toUpperCase();
@@ -62,6 +47,13 @@ export async function joinCrew(formData: FormData) {
 
   const [crew] = await db.select().from(crews).where(eq(crews.inviteCode, code)).limit(1);
   if (!crew) throw new Error("No crew found for that code");
+
+  const [existingMembership] = await db
+    .select({ crewId: crewMembers.crewId })
+    .from(crewMembers)
+    .where(and(eq(crewMembers.crewId, crew.id), eq(crewMembers.userId, userId)))
+    .limit(1);
+  if (existingMembership) redirect(`/crew/${crew.id}`);
 
   await db.insert(crewMembers).values({ crewId: crew.id, userId, role: "member" });
 

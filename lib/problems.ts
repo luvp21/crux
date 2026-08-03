@@ -15,6 +15,29 @@ export type Problem = {
   testCases: { input: string; expected: string }[];
 };
 
+export interface ProblemSummary {
+  id: string;
+  title: string;
+  difficulty: "easy" | "medium" | "hard";
+  topicTag: string;
+}
+
+type ProblemRow = typeof problems.$inferSelect;
+
+function toProblem(row: ProblemRow): Problem {
+  return {
+    id: row.id,
+    title: row.title,
+    difficulty: row.difficulty,
+    topicTag: row.topicTag,
+    description: row.description,
+    examples: (row.examples ?? []) as Problem["examples"],
+    constraints: row.constraints,
+    starterCode: (row.starterCode ?? {}) as Record<string, string>,
+    testCases: (row.testCases ?? []) as Problem["testCases"],
+  };
+}
+
 /**
  * Get today's daily challenge problem.
  * Falls back to a static seed problem if no DB challenge exists.
@@ -37,17 +60,7 @@ export async function getTodaysProblem(crewId: string): Promise<Problem> {
         .limit(1);
 
       if (problem) {
-        return {
-          id: problem.id,
-          title: problem.title,
-          difficulty: problem.difficulty,
-          topicTag: problem.topicTag,
-          description: problem.description,
-          examples: (problem.examples ?? []) as Problem["examples"],
-          constraints: problem.constraints,
-          starterCode: (problem.starterCode ?? {}) as Record<string, string>,
-          testCases: (problem.testCases ?? []) as Problem["testCases"],
-        };
+        return toProblem(problem);
       }
     }
   } catch {
@@ -97,17 +110,7 @@ export async function getWeeklyProblems(crewId: string): Promise<Problem[]> {
           .where(eq(problems.id, c.problemId))
           .limit(1);
         if (problem) {
-          result.push({
-            id: problem.id,
-            title: problem.title,
-            difficulty: problem.difficulty,
-            topicTag: problem.topicTag,
-            description: problem.description,
-            examples: (problem.examples ?? []) as Problem["examples"],
-            constraints: problem.constraints,
-            starterCode: (problem.starterCode ?? {}) as Record<string, string>,
-            testCases: (problem.testCases ?? []) as Problem["testCases"],
-          });
+          result.push(toProblem(problem));
         }
       }
       if (result.length > 0) return result;
@@ -172,5 +175,42 @@ export async function getUserSubmissions(userId: string, problemId: string) {
     return subs;
   } catch {
     return [];
+  }
+}
+
+/**
+ * Full problem catalog (or a filtered slice), for the solo-practice catalog
+ * and contest problem pickers. Returns [] on DB error rather than falling
+ * back to seed data — unlike the daily/weekly getters, an empty catalog is a
+ * legitimate, visible "no matches" state here, not something to paper over.
+ */
+export async function listProblems(filters?: {
+  topicTag?: string;
+  difficulty?: "easy" | "medium" | "hard";
+}): Promise<ProblemSummary[]> {
+  try {
+    const conditions = [
+      filters?.topicTag ? eq(problems.topicTag, filters.topicTag) : undefined,
+      filters?.difficulty ? eq(problems.difficulty, filters.difficulty) : undefined,
+    ].filter((c): c is NonNullable<typeof c> => c !== undefined);
+
+    const rows = await db
+      .select({ id: problems.id, title: problems.title, difficulty: problems.difficulty, topicTag: problems.topicTag })
+      .from(problems)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+/** A single problem by id, for the room (contest mode) and solo practice. */
+export async function getProblemById(problemId: string): Promise<Problem | null> {
+  try {
+    const [row] = await db.select().from(problems).where(eq(problems.id, problemId)).limit(1);
+    return row ? toProblem(row) : null;
+  } catch {
+    return null;
   }
 }

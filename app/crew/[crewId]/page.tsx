@@ -1,16 +1,22 @@
 import { eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireSession, requireCrewMember } from "@/lib/auth-helpers";
+import { ArrowRight, ArrowUpRight } from "@phosphor-icons/react/ssr";
+import { requireSession, requireCrewMember, getUserCrews } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { crewMembers, crews, users, codeCheckpoints } from "@/db/schema";
 import { getTodaysProblem, getWeeklyProblems } from "@/lib/problems";
 import { getCrewSolutionsForProblem } from "@/lib/crew-solutions";
+import { getActiveContest, getCrewContests } from "@/lib/contests";
 import { PulseStrip } from "@/components/pulse-strip";
+import { CrewSwitcher } from "@/components/crew-switcher";
+import { LeaveCrewButton } from "@/components/leave-crew-button";
+import { Button } from "@/components/ui/button";
+import { Panel } from "@/components/ui/panel";
 
 export default async function CrewHomePage({ params }: { params: { crewId: string } }) {
   const session = await requireSession();
-  await requireCrewMember(session.user.id, params.crewId);
+  const membership = await requireCrewMember(session.user.id, params.crewId);
 
   const [crew] = await db.select().from(crews).where(eq(crews.id, params.crewId)).limit(1);
   if (!crew) notFound();
@@ -19,6 +25,11 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
     .select()
     .from(crewMembers)
     .where(eq(crewMembers.crewId, params.crewId));
+
+  const userCrews = await getUserCrews(session.user.id);
+
+  const activeContest = await getActiveContest(params.crewId);
+  const pastContests = (await getCrewContests(params.crewId)).filter((c) => c.id !== activeContest?.id);
 
   const today = new Date().toISOString().slice(0, 10);
   const solvedToday = members.filter((m) => m.lastCompleted === today);
@@ -99,23 +110,50 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex" }}>
-      <div style={{ width: 200, background: "var(--panel)", borderRight: "1px solid var(--line)", padding: "20px 14px", flexShrink: 0 }}>
-        <p style={{ fontFamily: "var(--font-inter)", fontWeight: 700, fontSize: 13, color: "var(--fg)", margin: "0 0 20px" }}>
-          {crew.name}
-        </p>
+      <div style={{ width: 220, background: "var(--panel)", borderRight: "1px solid var(--line)", padding: "20px 14px", flexShrink: 0 }}>
+        <div style={{ marginBottom: 20 }}>
+          <CrewSwitcher
+            crews={userCrews.map((c) => ({ crewId: c.crewId, crewName: c.crewName, role: c.role }))}
+            activeCrewId={crew.id}
+          />
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--muted)" }}>
           <div style={{ background: "var(--raise)", borderRadius: 6, padding: "6px 10px", color: "var(--fg)" }}>Today</div>
         </div>
-        <div style={{ marginTop: 28, background: "var(--raise)", border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}>
+        <Panel style={{ marginTop: 28, padding: 10 }}>
           <p style={{ fontFamily: "var(--font-jetbrains-mono)", fontSize: "10.5px", color: "var(--accent)", margin: "0 0 4px" }}>
             {crew.currentStreak}-day streak
           </p>
           <p style={{ fontSize: "10.5px", color: "var(--muted)", margin: 0 }}>invite code {crew.inviteCode}</p>
+        </Panel>
+        <Link
+          href="/crew/new"
+          style={{
+            display: "block",
+            marginTop: 10,
+            border: "1px dashed var(--line)",
+            borderRadius: 6,
+            padding: "8px 10px",
+            fontSize: "10.5px",
+            letterSpacing: "0.06em",
+            color: "var(--muted)",
+            textAlign: "center",
+          }}
+        >
+          + join or create a crew
+        </Link>
+        <div style={{ marginTop: 10 }}>
+          <LeaveCrewButton
+            crewId={crew.id}
+            crewName={crew.name}
+            role={membership.role}
+            otherMemberCount={members.length - 1}
+          />
         </div>
         <span
           style={{
             display: "block",
-            marginTop: 10,
+            marginTop: 20,
             border: "1px solid var(--line)",
             borderRadius: 6,
             padding: "6px 10px",
@@ -130,7 +168,48 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
       </div>
 
       <div style={{ flex: 1, padding: "28px 32px", maxWidth: 720 }}>
-        <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px", marginBottom: 24 }}>
+        {activeContest ? (
+          <Panel style={{ marginBottom: 24, padding: "14px 16px", borderColor: "var(--accent)" }}>
+            <p
+              style={{
+                fontFamily: "var(--font-jetbrains-mono)",
+                fontSize: "9.5px",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--accent)",
+                margin: "0 0 6px",
+              }}
+            >
+              contest live &middot; {activeContest.problems.length} problem{activeContest.problems.length !== 1 ? "s" : ""}
+            </p>
+            <p style={{ fontFamily: "var(--font-inter)", fontWeight: 600, fontSize: 16, color: "var(--fg)", margin: "0 0 14px" }}>
+              {activeContest.name}
+            </p>
+            <Button href={`/crew/${crew.id}/room`} size="sm" icon={<ArrowRight size={13} weight="bold" />} iconPosition="right">
+              Open room
+            </Button>
+          </Panel>
+        ) : (
+          membership.role === "owner" && (
+            <Link
+              href={`/crew/${crew.id}/contests/new`}
+              style={{
+                display: "block",
+                marginBottom: 24,
+                border: "1px dashed var(--line)",
+                borderRadius: 8,
+                padding: "12px 16px",
+                fontSize: "11.5px",
+                letterSpacing: "0.06em",
+                color: "var(--muted)",
+              }}
+            >
+              + start a contest
+            </Link>
+          )
+        )}
+
+        <Panel style={{ marginBottom: 24, padding: "14px 16px" }}>
           <p
             style={{
               fontFamily: "var(--font-jetbrains-mono)",
@@ -152,23 +231,10 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
           <p style={{ fontFamily: "var(--font-jetbrains-mono)", fontSize: "10.5px", color: "var(--muted)", margin: "0 0 14px" }}>
             {todaysProblem.difficulty} &middot; {todaysProblem.topicTag}
           </p>
-          <Link
-            href={`/crew/${crew.id}/room`}
-            style={{
-              display: "inline-block",
-              background: "var(--accent)",
-              color: "var(--accent-fg)",
-              fontSize: "11.5px",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              padding: "10px 18px",
-              borderRadius: 6,
-            }}
-          >
-            Open room &rarr;
-          </Link>
-        </div>
+          <Button href={`/crew/${crew.id}/room`} size="sm" icon={<ArrowRight size={13} weight="bold" />} iconPosition="right">
+            Open room
+          </Button>
+        </Panel>
 
         <div style={{ marginBottom: 24 }}>
           <p style={{ fontSize: 12, color: "var(--muted)", margin: "0 0 6px" }}>
@@ -215,13 +281,53 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
               </span>
               {a.checkpoints && <PulseStrip checkpoints={a.checkpoints} />}
               {a.link && (
-                <Link href={a.link} style={{ fontSize: "10.5px", color: "var(--accent)" }}>
-                  view &rarr;
+                <Link href={a.link} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10.5px", color: "var(--accent)" }}>
+                  view <ArrowUpRight size={11} weight="bold" />
                 </Link>
               )}
             </div>
           ))}
         </div>
+
+        {pastContests.length > 0 && (
+          <>
+            <p
+              style={{
+                fontFamily: "var(--font-jetbrains-mono)",
+                fontSize: "9.5px",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--muted)",
+                margin: "28px 0 8px",
+              }}
+            >
+              past contests
+            </p>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {pastContests.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/crew/${crew.id}/contests/${c.id}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "9px 4px",
+                    borderBottom: "1px solid var(--line)",
+                    fontSize: 12,
+                    color: "var(--fg)",
+                  }}
+                >
+                  {c.name}
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10.5px", color: "var(--accent)" }}>
+                    results <ArrowUpRight size={11} weight="bold" />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

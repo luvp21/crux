@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { crewMembers } from "@/db/schema";
+import { crewMembers, crews } from "@/db/schema";
 
 export async function requireSession() {
   const session = await auth();
@@ -10,14 +10,32 @@ export async function requireSession() {
   return session as typeof session & { user: { id: string } };
 }
 
-/** A user can only belong to one crew at a time — see crew setup screen copy. */
-export async function getUserCrewId(userId: string) {
-  const [membership] = await db
-    .select({ crewId: crewMembers.crewId })
+export interface CrewMembershipSummary {
+  crewId: string;
+  crewName: string;
+  role: "owner" | "member";
+  crewStreak: number;
+  inviteCode: string;
+  joinedAt: Date;
+}
+
+/** Every crew a user belongs to, oldest membership first. A user can belong
+ * to any number of crews at once. */
+export async function getUserCrews(userId: string): Promise<CrewMembershipSummary[]> {
+  const rows = await db
+    .select({
+      crewId: crews.id,
+      crewName: crews.name,
+      role: crewMembers.role,
+      crewStreak: crews.currentStreak,
+      inviteCode: crews.inviteCode,
+      joinedAt: crewMembers.joinedAt,
+    })
     .from(crewMembers)
+    .innerJoin(crews, eq(crewMembers.crewId, crews.id))
     .where(eq(crewMembers.userId, userId))
-    .limit(1);
-  return membership?.crewId ?? null;
+    .orderBy(crewMembers.joinedAt);
+  return rows;
 }
 
 export async function requireCrewMember(userId: string, crewId: string) {

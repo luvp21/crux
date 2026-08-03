@@ -1,10 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import type { Problem } from "@/lib/problems";
+import { ArrowLeft, ArrowRight, Lock } from "@phosphor-icons/react";
+import type { Problem, ProblemSummary } from "@/lib/problems";
 import { usePartyRoom } from "@/lib/partykit";
+import { Button } from "@/components/ui/button";
+import { CrewSwitcher, type CrewSwitcherCrew } from "@/components/crew-switcher";
+import {
+  useProblemWorkspace,
+  LANGUAGES,
+  LANG_KEY,
+  type DocTab,
+  type SubmissionRecord,
+} from "@/lib/hooks/use-problem-workspace";
 
 // Lazy-load Monaco to avoid SSR issues
 const CodeEditor = dynamic(
@@ -30,40 +40,48 @@ const CodeEditor = dynamic(
   },
 );
 
-const LANGUAGES = ["Python 3", "C++ 17", "Java 17"];
-const LANG_KEY: Record<string, string> = {
-  "Python 3": "python",
-  "C++ 17": "cpp",
-  "Java 17": "java",
-};
-
-type DocTab = "Problem" | "Hints" | "Submissions";
-type RunStatus = "idle" | "running" | "submitting";
-
-interface TestResult {
-  case: number;
-  input: string;
-  expected: string;
-  got: string;
-  passed: boolean;
-}
-
-interface SubmissionRecord {
-  id: string;
-  verdict: string;
-  runtime: number | null;
-  submittedAt: string;
-}
-
 interface CrewSolutionEntry {
   userId: string;
   status: "not_started" | "locked" | "visible";
   link: string | null;
 }
 
+interface ContestInfo {
+  id: string;
+  name: string;
+  endAt: string;
+  problems: ProblemSummary[];
+}
+
+function useCountdown(endAt: string | undefined): string | null {
+  const [label, setLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!endAt) {
+      setLabel(null);
+      return;
+    }
+    const end = new Date(endAt).getTime();
+    function tick() {
+      const remainingMs = end - Date.now();
+      if (remainingMs <= 0) {
+        setLabel("ended");
+        return;
+      }
+      const mins = Math.floor(remainingMs / 60000);
+      const secs = Math.floor((remainingMs % 60000) / 1000);
+      setLabel(`${mins}:${secs.toString().padStart(2, "0")} left`);
+    }
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [endAt]);
+
+  return label;
+}
+
 export function RoomClient({
   crewId,
-  crewName,
   streak,
   problem,
   memberCount,
@@ -71,9 +89,11 @@ export function RoomClient({
   userName,
   previousSubmissions,
   crewSolutions,
+  userCrews,
+  contest,
+  activeProblemId,
 }: {
   crewId: string;
-  crewName: string;
   streak: number;
   problem: Problem;
   memberCount: number;
@@ -81,247 +101,60 @@ export function RoomClient({
   userName: string;
   previousSubmissions: SubmissionRecord[];
   crewSolutions: CrewSolutionEntry[];
+  userCrews: CrewSwitcherCrew[];
+  contest: ContestInfo | null;
+  activeProblemId: string;
 }) {
-  const [docTab, setDocTab] = useState<DocTab>("Problem");
-  const [language, setLanguage] = useState(LANGUAGES[0]);
-  const [code, setCode] = useState(
-    problem.starterCode[LANG_KEY[LANGUAGES[0]]] ?? "",
-  );
-  const [runStatus, setRunStatus] = useState<RunStatus>("idle");
-  const [runOutput, setRunOutput] = useState<string | null>(null);
-  const [submitResults, setSubmitResults] = useState<TestResult[] | null>(null);
-  const [verdict, setVerdict] = useState<string | null>(null);
-  const [runtime, setRuntime] = useState<number | null>(null);
-  const [caseIdx, setCaseIdx] = useState(0);
-  const [subs, setSubs] = useState<SubmissionRecord[]>(previousSubmissions);
-  const [hint, setHint] = useState<string | null>(null);
-  const [hintLoading, setHintLoading] = useState(false);
-  const [hintLocked, setHintLocked] = useState<number | null>(null);
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // PartyKit live presence + chat
-  const { members: partyMembers, chat: partyChat, connected, sendChat, updateStatus } = usePartyRoom(
+  const { members: partyMembers, chat: partyChat, sendChat, updateStatus } = usePartyRoom(
     crewId,
     userId,
     userName,
   );
-  const codeChangeTimeout = useRef<ReturnType<typeof setTimeout>>();
-  const checkpointTimeout = useRef<ReturnType<typeof setTimeout>>();
-  const lastCheckpointCodeRef = useRef(code);
 
-  const postCheckpoint = useCallback(
-    async (snapshotCode: string) => {
-      if (snapshotCode === lastCheckpointCodeRef.current) return;
-      try {
-        const res = await fetch("/api/checkpoints", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            problemId: problem.id,
-            crewId,
-            code: snapshotCode,
-            language: LANG_KEY[language] ?? "python",
-          }),
-        });
-        if (res.ok) {
-          lastCheckpointCodeRef.current = snapshotCode;
-        }
-      } catch {
-        // Best-effort: a missed checkpoint is a gap in the timeline, not a broken submit flow.
-        // Leave lastCheckpointCodeRef untouched so the next attempt retries this code.
-      }
-    },
-    [problem.id, crewId, language],
-  );
+  const {
+    docTab,
+    setDocTab,
+    language,
+    handleLanguageChange,
+    handleCodeChange,
+    handleReset,
+    handleCopy,
+    code,
+    runStatus,
+    runOutput,
+    submitResults,
+    verdict,
+    runtime,
+    caseIdx,
+    setCaseIdx,
+    testCases,
+    activeCase,
+    handleRun,
+    handleSubmit,
+    subs,
+    failedCount,
+    hint,
+    hintLoading,
+    hintLocked,
+    handleRequestHint,
+  } = useProblemWorkspace({ problem, crewId, contestId: contest?.id, previousSubmissions, onStatusChange: updateStatus });
 
-  const testCases = problem.testCases ?? [];
-  const activeCase = testCases[caseIdx] ?? { input: "", expected: "" };
-
-  // Switch language → update starter code
-  const handleLanguageChange = useCallback(
-    (newLang: string) => {
-      setLanguage(newLang);
-      const key = LANG_KEY[newLang] ?? "python";
-      setCode(problem.starterCode[key] ?? "");
-    },
-    [problem.starterCode],
-  );
-
-  // Track code changes for status updates
-  const handleCodeChange = useCallback(
-    (val: string) => {
-      setCode(val);
-      updateStatus("coding");
-      clearTimeout(codeChangeTimeout.current);
-      codeChangeTimeout.current = setTimeout(() => {
-        updateStatus("idle");
-      }, 30000); // go idle after 30s of no changes
-
-      clearTimeout(checkpointTimeout.current);
-      checkpointTimeout.current = setTimeout(() => {
-        postCheckpoint(val);
-      }, 25000); // one checkpoint per ~25s of active typing
-    },
-    [updateStatus, postCheckpoint],
-  );
-
-  // Reset code
-  const handleReset = useCallback(() => {
-    clearTimeout(checkpointTimeout.current);
-    const key = LANG_KEY[language] ?? "python";
-    setCode(problem.starterCode[key] ?? "");
-    setRunOutput(null);
-    setSubmitResults(null);
-    setVerdict(null);
-  }, [language, problem.starterCode]);
-
-  // Copy code
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code);
-  }, [code]);
-
-  // ---- Run (single test case) ----
-  const handleRun = useCallback(async () => {
-    setRunStatus("running");
-    setRunOutput(null);
-    try {
-      postCheckpoint(code);
-      const res = await fetch("/api/judge0", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          language: LANG_KEY[language] ?? "python",
-          stdin: activeCase.input,
-          problemId: problem.id,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setRunOutput(`Error: ${data.error}`);
-      } else {
-        const output = [
-          data.stdout && `stdout:\n${data.stdout}`,
-          data.stderr && `stderr:\n${data.stderr}`,
-          data.compile_output && `compile:\n${data.compile_output}`,
-          `status: ${data.status?.description ?? "Unknown"}`,
-          data.time && `time: ${data.time}s`,
-        ]
-          .filter(Boolean)
-          .join("\n\n");
-        setRunOutput(output);
-      }
-    } catch (err) {
-      setRunOutput(`Network error: ${(err as Error).message}`);
-    } finally {
-      setRunStatus("idle");
-    }
-  }, [code, language, activeCase, postCheckpoint]);
-
-  // ---- Submit (all test cases) ----
-  const handleSubmit = useCallback(async () => {
-    setRunStatus("submitting");
-    setSubmitResults(null);
-    setVerdict(null);
-    setRuntime(null);
-    try {
-      postCheckpoint(code);
-      const res = await fetch("/api/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          problemId: problem.id,
-          crewId,
-          code,
-          language: LANG_KEY[language] ?? "python",
-        }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setVerdict("error");
-        setRunOutput(`Error: ${data.error}`);
-      } else {
-        setSubmitResults(data.results ?? []);
-        setVerdict(data.verdict);
-        setRuntime(data.runtime);
-        // Add to submissions list
-        setSubs((prev) => [
-          {
-            id: data.submissionId ?? crypto.randomUUID(),
-            verdict: data.verdict,
-            runtime: data.runtime,
-            submittedAt: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
-        // Update PartyKit status
-        if (data.verdict === "accepted") {
-          updateStatus("solved");
-        }
-      }
-    } catch (err) {
-      setVerdict("error");
-      setRunOutput(`Network error: ${(err as Error).message}`);
-    } finally {
-      setRunStatus("idle");
-    }
-  }, [code, language, problem.id, crewId, postCheckpoint]);
-
-  // ---- Hints ----
-  const handleRequestHint = useCallback(async () => {
-    setHintLoading(true);
-    try {
-      const res = await fetch("/api/hint", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          problemId: problem.id,
-          crewId,
-          code,
-          language: LANG_KEY[language] ?? "python",
-        }),
-      });
-      const data = await res.json();
-      if (data.locked) {
-        setHintLocked(data.attemptsNeeded);
-      } else {
-        setHint(data.hint);
-        setHintLocked(null);
-      }
-    } catch {
-      setHint("Could not load hint. Try again later.");
-    } finally {
-      setHintLoading(false);
-    }
-  }, [problem.id, crewId, code, language]);
+  const contestCountdown = useCountdown(contest?.endAt);
 
   // ---- Chat (via PartyKit) ----
-  const handleSendChat = useCallback(() => {
+  const handleSendChat = () => {
     if (!chatInput.trim()) return;
     sendChat(chatInput.trim());
     setChatInput("");
-  }, [chatInput, sendChat]);
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [partyChat]);
-
-  // ---- Keyboard shortcuts ----
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault();
-        if (e.shiftKey) {
-          handleSubmit();
-        } else {
-          handleRun();
-        }
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleRun, handleSubmit]);
 
   const verdictColor =
     verdict === "accepted"
@@ -329,8 +162,6 @@ export function RoomClient({
       : verdict === "error"
         ? "var(--muted)"
         : "#e06060";
-
-  const failedCount = subs.filter((s) => s.verdict !== "accepted").length;
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -357,10 +188,20 @@ export function RoomClient({
             textTransform: "uppercase",
           }}
         >
-          <Link href={`/crew/${crewId}`} style={{ color: "var(--muted)" }}>
-            &larr; crew
-          </Link>
-          <span style={{ fontWeight: 700 }}>{crewName}</span>
+          <Button
+            href={`/crew/${crewId}`}
+            variant="ghost"
+            size="sm"
+            icon={<ArrowLeft size={12} weight="bold" />}
+            style={{ padding: 0, letterSpacing: "0.14em", fontSize: "10.5px" }}
+          >
+            Exit room
+          </Button>
+          <CrewSwitcher
+            crews={userCrews}
+            activeCrewId={crewId}
+            triggerStyle={{ fontSize: "10.5px", textTransform: "uppercase", letterSpacing: "0.14em" }}
+          />
           <span
             style={{
               display: "flex",
@@ -391,9 +232,52 @@ export function RoomClient({
             textTransform: "uppercase",
           }}
         >
-          <span style={{ color: "var(--accent)" }}>streak {streak}</span>
+          {contest ? (
+            <span style={{ color: "var(--accent)" }}>
+              {contest.name} &middot; {contestCountdown}
+            </span>
+          ) : (
+            <span style={{ color: "var(--accent)" }}>streak {streak}</span>
+          )}
         </div>
       </div>
+
+      {/* ---- Contest problem strip ---- */}
+      {contest && contest.problems.length > 1 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "10px 18px",
+            borderBottom: "1px solid var(--line)",
+            background: "var(--panel)",
+            flex: "none",
+            overflowX: "auto",
+          }}
+        >
+          {contest.problems.map((p, i) => (
+            <Link
+              key={p.id}
+              href={`/crew/${crewId}/room?p=${p.id}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                border: `1px solid ${activeProblemId === p.id ? "var(--accent)" : "var(--line)"}`,
+                padding: "6px 11px",
+                fontSize: "10.5px",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                whiteSpace: "nowrap",
+                color: activeProblemId === p.id ? "var(--fg)" : "var(--muted)",
+              }}
+            >
+              {i + 1}. {p.title}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* ---- Main 3-column layout ---- */}
       <div
@@ -579,6 +463,9 @@ export function RoomClient({
                 {hintLocked !== null && (
                   <div
                     style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
                       border: "1px solid var(--line)",
                       padding: "18px 16px",
                       fontSize: 12,
@@ -586,7 +473,8 @@ export function RoomClient({
                       marginBottom: 16,
                     }}
                   >
-                    🔒 Submit {hintLocked} more time
+                    <Lock size={13} weight="bold" />
+                    Submit {hintLocked} more time
                     {hintLocked > 1 ? "s" : ""} to unlock AI hints
                   </div>
                 )}
@@ -1159,12 +1047,15 @@ export function RoomClient({
                     <Link
                       href={solution.link}
                       style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 3,
                         fontSize: 10,
                         fontFamily: "var(--font-jetbrains-mono)",
                         color: "var(--accent)",
                       }}
                     >
-                      view &rarr;
+                      view <ArrowRight size={10} weight="bold" />
                     </Link>
                   )}
                   {solution?.status === "locked" && (

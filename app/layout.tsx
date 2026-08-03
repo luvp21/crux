@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Inter, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const instrumentSerif = Instrument_Serif({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["400"],
+  weight: ["500", "600", "700"],
   variable: "--font-display",
   display: "swap",
 });
@@ -37,7 +37,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${instrumentSerif.variable} ${inter.variable} ${jetbrainsMono.variable}`}
+        className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}
         style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}
       >
         <Providers>{children}</Providers>

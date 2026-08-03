@@ -1,13 +1,20 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import { requireSession, requireCrewMember } from "@/lib/auth-helpers";
+import { requireSession, requireCrewMember, getUserCrews } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { crews, crewMembers } from "@/db/schema";
-import { getTodaysProblem, getUserSubmissions } from "@/lib/problems";
+import { getTodaysProblem, getProblemById, getUserSubmissions } from "@/lib/problems";
 import { getCrewSolutionsForProblem } from "@/lib/crew-solutions";
+import { getActiveContest } from "@/lib/contests";
 import { RoomClient } from "./room-client";
 
-export default async function RoomPage({ params }: { params: { crewId: string } }) {
+export default async function RoomPage({
+  params,
+  searchParams,
+}: {
+  params: { crewId: string };
+  searchParams: { p?: string };
+}) {
   const session = await requireSession();
   await requireCrewMember(session.user.id, params.crewId);
 
@@ -19,8 +26,17 @@ export default async function RoomPage({ params }: { params: { crewId: string } 
     .from(crewMembers)
     .where(eq(crewMembers.crewId, params.crewId));
 
-  const problem = await getTodaysProblem(params.crewId);
+  const contest = await getActiveContest(params.crewId);
+
+  const problem = contest
+    ? ((await getProblemById(searchParams.p ?? contest.problems[0].id)) ??
+      (await getProblemById(contest.problems[0].id)))
+    : await getTodaysProblem(params.crewId);
+  if (!problem) notFound();
+
   const userSubs = await getUserSubmissions(session.user.id, problem.id);
+
+  const userCrews = await getUserCrews(session.user.id);
 
   const solutionRows = (await getCrewSolutionsForProblem(session.user.id, params.crewId, problem.id)) ?? [];
   const crewSolutions = solutionRows.map((row) =>
@@ -36,7 +52,6 @@ export default async function RoomPage({ params }: { params: { crewId: string } 
   return (
     <RoomClient
       crewId={crew.id}
-      crewName={crew.name}
       streak={crew.currentStreak}
       problem={problem}
       memberCount={members.length}
@@ -49,6 +64,13 @@ export default async function RoomPage({ params }: { params: { crewId: string } 
         submittedAt: s.submittedAt.toISOString(),
       }))}
       crewSolutions={crewSolutions}
+      userCrews={userCrews.map((c) => ({ crewId: c.crewId, crewName: c.crewName, role: c.role }))}
+      contest={
+        contest
+          ? { id: contest.id, name: contest.name, endAt: contest.endAt.toISOString(), problems: contest.problems }
+          : null
+      }
+      activeProblemId={problem.id}
     />
   );
 }

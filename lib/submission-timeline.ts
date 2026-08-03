@@ -29,7 +29,11 @@ export async function getSubmissionTimeline(requesterId: string, submissionId: s
   }
 
   if (submission.userId !== requesterId) {
-    const canView = await canViewSolution(requesterId, submission.crewId, submission.problemId);
+    // A solo (crewless) submission has no crew to share it through — only
+    // its own author can ever view it.
+    const canView = submission.crewId
+      ? await canViewSolution(requesterId, submission.crewId, submission.problemId)
+      : false;
     if (!canView) {
       return { ok: false, status: 403 };
     }

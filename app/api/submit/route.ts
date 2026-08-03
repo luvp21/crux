@@ -18,7 +18,8 @@ const LANG_IDS: Record<string, number> = {
 
 interface SubmitRequest {
   problemId: string;
-  crewId: string;
+  crewId?: string | null;
+  contestId?: string | null;
   code: string;
   language: string;
 }
@@ -37,9 +38,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as SubmitRequest;
-    const { problemId, crewId, code, language } = body;
+    const { problemId, crewId, contestId, code, language } = body;
 
-    if (!problemId || !crewId || !code) {
+    if (!problemId || !code) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
@@ -78,12 +79,13 @@ export async function POST(req: NextRequest) {
         .values({
           userId: session.user.id,
           problemId,
-          crewId,
+          crewId: crewId ?? null,
+          contestId: contestId ?? null,
           code,
           language,
           verdict: mockVerdict,
           runtime: Math.floor(30 + Math.random() * 70),
-          context: "daily",
+          context: contestId ? "contest" : crewId ? "daily" : "practice",
         })
         .returning({ id: submissions.id });
 
@@ -94,12 +96,12 @@ export async function POST(req: NextRequest) {
           and(
             eq(codeCheckpoints.userId, session.user.id),
             eq(codeCheckpoints.problemId, problemId),
-            eq(codeCheckpoints.crewId, crewId),
+            crewId ? eq(codeCheckpoints.crewId, crewId) : isNull(codeCheckpoints.crewId),
             isNull(codeCheckpoints.submissionId),
           ),
         );
 
-      if (mockVerdict === "accepted") {
+      if (mockVerdict === "accepted" && crewId) {
         await updateStreaksAfterSolve(session.user.id, crewId);
       }
 
@@ -189,12 +191,13 @@ export async function POST(req: NextRequest) {
       .values({
         userId: session.user.id,
         problemId,
-        crewId,
+        crewId: crewId ?? null,
+        contestId: contestId ?? null,
         code,
         language,
         verdict: overallVerdict,
         runtime,
-        context: "daily",
+        context: contestId ? "contest" : crewId ? "daily" : "practice",
       })
       .returning({ id: submissions.id });
 
@@ -205,12 +208,12 @@ export async function POST(req: NextRequest) {
         and(
           eq(codeCheckpoints.userId, session.user.id),
           eq(codeCheckpoints.problemId, problemId),
-          eq(codeCheckpoints.crewId, crewId),
+          crewId ? eq(codeCheckpoints.crewId, crewId) : isNull(codeCheckpoints.crewId),
           isNull(codeCheckpoints.submissionId),
         ),
       );
 
-    if (overallVerdict === "accepted") {
+    if (overallVerdict === "accepted" && crewId) {
       await updateStreaksAfterSolve(session.user.id, crewId);
     }
 

@@ -9,7 +9,7 @@ const PASTE_THRESHOLD_CHARS = 80;
 
 interface CheckpointRequest {
   problemId: string;
-  crewId: string;
+  crewId?: string | null;
   code: string;
   language: string;
 }
@@ -29,20 +29,23 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as CheckpointRequest;
     const { problemId, crewId, code, language } = body;
-    if (!problemId || !crewId || typeof code !== "string" || !language) {
+    if (!problemId || typeof code !== "string" || !language) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
     // The client supplies `crewId`; downstream tagging at submit time trusts
     // this same value to scope checkpoints to a crew (see app/api/submit/route.ts),
-    // so it must be verified here rather than taken on faith.
-    const [membership] = await db
-      .select()
-      .from(crewMembers)
-      .where(and(eq(crewMembers.userId, session.user.id), eq(crewMembers.crewId, crewId)))
-      .limit(1);
-    if (!membership) {
-      return NextResponse.json({ error: "Not a member of this crew" }, { status: 403 });
+    // so it must be verified here rather than taken on faith. Solo (crewless)
+    // checkpoints have no membership to verify.
+    if (crewId) {
+      const [membership] = await db
+        .select()
+        .from(crewMembers)
+        .where(and(eq(crewMembers.userId, session.user.id), eq(crewMembers.crewId, crewId)))
+        .limit(1);
+      if (!membership) {
+        return NextResponse.json({ error: "Not a member of this crew" }, { status: 403 });
+      }
     }
 
     const [previous] = await db
@@ -66,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     const [checkpoint] = await db
       .insert(codeCheckpoints)
-      .values({ userId: session.user.id, problemId, crewId, code, language, insertedChars, isPasteFlag })
+      .values({ userId: session.user.id, problemId, crewId: crewId ?? null, code, language, insertedChars, isPasteFlag })
       .returning({ id: codeCheckpoints.id });
 
     return NextResponse.json({ checkpointId: checkpoint.id, isPasteFlag });

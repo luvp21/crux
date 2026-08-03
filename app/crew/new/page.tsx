@@ -1,16 +1,19 @@
-import { redirect } from "next/navigation";
-import { requireSession, getUserCrewId } from "@/lib/auth-helpers";
+import Link from "next/link";
+import { requireSession, getUserCrews } from "@/lib/auth-helpers";
+import { SiteNav } from "@/components/site-nav";
 import { createCrew, joinCrew } from "./actions";
 
 export default async function CrewSetupPage() {
   const session = await requireSession();
-  const existingCrewId = await getUserCrewId(session.user.id);
-  if (existingCrewId) redirect(`/crew/${existingCrewId}`);
+  const crews = await getUserCrews(session.user.id);
+  const hasCrews = crews.length > 0;
 
   return (
-    <div style={{ minHeight: "calc(100vh - 40px)", display: "grid", placeItems: "center", padding: "48px 24px" }}>
+    <div style={{ minHeight: "100vh" }}>
+      <SiteNav />
+      <div style={{ minHeight: "calc(100vh - 104px)", display: "grid", placeItems: "center", padding: "48px 24px" }}>
       <div style={{ width: "100%", maxWidth: 820, animation: "up 500ms ease both" }}>
-        <div style={{ textAlign: "center", marginBottom: 48 }}>
+        <div style={{ textAlign: "center", marginBottom: hasCrews ? 32 : 48 }}>
           <div
             style={{
               fontFamily: "var(--font-jetbrains-mono)",
@@ -33,12 +36,56 @@ export default async function CrewSetupPage() {
               margin: "0 0 12px",
             }}
           >
-            Start where your friends are
+            {hasCrews ? "Add another crew" : "Start where your friends are"}
           </h2>
           <p style={{ fontSize: "12.5px", color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
-            You can only be in one crew at a time. Pick a side.
+            {hasCrews
+              ? "Add another crew, or jump back into one you're already in."
+              : "Crews are free to make. Join as many as your friends run."}
           </p>
         </div>
+
+        {hasCrews && (
+          <div style={{ border: "1px solid var(--line)", marginBottom: 24 }}>
+            {crews.map((c) => (
+              <Link
+                key={c.crewId}
+                href={`/crew/${c.crewId}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "13px 16px",
+                  borderBottom: "1px solid var(--line)",
+                  fontSize: "12.5px",
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ color: "var(--fg)" }}>{c.crewName}</span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: "var(--muted)",
+                    }}
+                  >
+                    {c.role}
+                  </span>
+                </span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-jetbrains-mono)",
+                    fontSize: "10.5px",
+                    color: "var(--accent)",
+                  }}
+                >
+                  {c.crewStreak}-day streak
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", border: "1px solid var(--line)" }}>
           <form
@@ -168,6 +215,7 @@ export default async function CrewSetupPage() {
             </div>
           </form>
         </div>
+      </div>
       </div>
     </div>
   );

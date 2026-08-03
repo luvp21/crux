@@ -170,6 +170,40 @@ export const crewChallengePreferences = pgTable(
   (t) => [primaryKey({ columns: [t.crewId, t.type] })],
 );
 
+// A crew-created, timed, multi-problem practice session. Status (scheduled
+// is not modeled — contests start immediately on creation) is derived from
+// `now` vs `startAt`/`endAt` at read time rather than stored, so nothing
+// needs to flip it.
+export const contests = pgTable("contests", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  crewId: text("crew_id")
+    .notNull()
+    .references(() => crews.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdByUserId: text("created_by_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  startAt: timestamp("start_at", { mode: "date" }).notNull(),
+  endAt: timestamp("end_at", { mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const contestProblems = pgTable(
+  "contest_problems",
+  {
+    contestId: text("contest_id")
+      .notNull()
+      .references(() => contests.id, { onDelete: "cascade" }),
+    problemId: text("problem_id")
+      .notNull()
+      .references(() => problems.id, { onDelete: "cascade" }),
+    orderIndex: integer("order_index").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.contestId, t.problemId] })],
+);
+
 export const submissions = pgTable("submissions", {
   id: text("id")
     .primaryKey()
@@ -180,9 +214,10 @@ export const submissions = pgTable("submissions", {
   problemId: text("problem_id")
     .notNull()
     .references(() => problems.id, { onDelete: "cascade" }),
-  crewId: text("crew_id")
-    .notNull()
-    .references(() => crews.id, { onDelete: "cascade" }),
+  // Nullable: a solo-practice submission (outside any crew) has no crewId.
+  crewId: text("crew_id").references(() => crews.id, { onDelete: "cascade" }),
+  // Nullable: only set for a submission made during an active contest.
+  contestId: text("contest_id").references(() => contests.id, { onDelete: "cascade" }),
   context: text("context"),
   code: text("code").notNull().default(""),
   language: text("language").notNull().default("python"),
@@ -203,9 +238,8 @@ export const codeCheckpoints = pgTable("code_checkpoints", {
   problemId: text("problem_id")
     .notNull()
     .references(() => problems.id, { onDelete: "cascade" }),
-  crewId: text("crew_id")
-    .notNull()
-    .references(() => crews.id, { onDelete: "cascade" }),
+  // Nullable: a solo-practice checkpoint (outside any crew) has no crewId.
+  crewId: text("crew_id").references(() => crews.id, { onDelete: "cascade" }),
   code: text("code").notNull(),
   language: text("language").notNull(),
   insertedChars: integer("inserted_chars").notNull().default(0),

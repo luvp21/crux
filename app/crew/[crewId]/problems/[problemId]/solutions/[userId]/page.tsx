@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "@phosphor-icons/react/ssr";
 import { requireSession, requireCrewMember } from "@/lib/auth-helpers";
 import { getCrewSolutionsForProblem } from "@/lib/crew-solutions";
 import { getSubmissionTimeline } from "@/lib/submission-timeline";
 import { PulseStrip } from "@/components/pulse-strip";
+import { SiteNav } from "@/components/site-nav";
 
 export default async function SolutionDetailPage({
   params,
@@ -34,7 +37,25 @@ export default async function SolutionDetailPage({
   const submittedCode = timeline.code;
 
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 28px" }}>
+    <div style={{ minHeight: "100vh" }}>
+      <SiteNav />
+      <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 28px" }}>
+        <Link
+          href={`/crew/${params.crewId}`}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: "10.5px",
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "var(--muted)",
+            marginBottom: 20,
+          }}
+        >
+          <ArrowLeft size={12} weight="bold" />
+          back to crew
+        </Link>
       <div style={{ fontSize: "10.5px", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
         {row.verdict} · {timeline.timeSpentLabel}
       </div>
@@ -54,6 +75,7 @@ export default async function SolutionDetailPage({
       >
         {submittedCode}
       </pre>
+      </div>
     </div>
   );
 }
