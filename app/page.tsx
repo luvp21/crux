@@ -38,7 +38,8 @@ export default async function LandingPage() {
     <div style={{ background: PALETTE.bgBase, minHeight: "100vh" }}>
       <div
         style={{
-          maxWidth: "76%",
+          width: "76%",
+          maxWidth: 1240,
           margin: "0 auto",
           background: PALETTE.bgSurface,
         }}
