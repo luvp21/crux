@@ -1,11 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession, requireCrewMember } from "@/lib/auth-helpers";
 import { PlusMarks } from "@/components/plus-marks";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { db } from "@/db";
-import { crewMembers, crews } from "@/db/schema";
+import { crewMembers, crews, users } from "@/db/schema";
 import { getTodaysProblem, getWeeklyProblems } from "@/lib/problems";
 import { getCrewSolutionsForProblem } from "@/lib/crew-solutions";
 
@@ -35,17 +35,31 @@ export default async function CrewHomePage({ params }: { params: { crewId: strin
     .slice(0, 2)
     .toUpperCase();
 
+  // Activity rows are keyed by userId only (crewSolutions), with no name —
+  // join to `users` for display names so a multi-person crew's rows aren't
+  // all indistinguishable. Falls back to email, matching the established
+  // `session.user.name ?? session.user.email` pattern used for `initials`
+  // above and for `userName` passed into room-client.tsx.
+  const memberUsers = members.length
+    ? await db
+        .select()
+        .from(users)
+        .where(inArray(users.id, members.map((m) => m.userId)))
+    : [];
+  const nameById = new Map(memberUsers.map((u) => [u.id, u.name ?? u.email]));
+
   const activity = crewSolutions.map((row) => {
+    const displayName = nameById.get(row.userId) ?? "member";
     if (row.status === "not_started") {
-      return { userId: row.userId, label: "not started", link: null };
+      return { userId: row.userId, label: `${displayName} — not started`, link: null };
     }
     if (row.status === "locked") {
-      return { userId: row.userId, label: "locked — submit today's problem to see this", link: null };
+      return { userId: row.userId, label: `${displayName} — locked — submit today's problem to see this`, link: null };
     }
     const verb = row.verdict === "accepted" ? "solved" : "attempted";
     return {
       userId: row.userId,
-      label: `${verb} · ${getTimeAgo(new Date(row.submittedAt))}`,
+      label: `${displayName} — ${verb} · ${getTimeAgo(new Date(row.submittedAt))}`,
       link: `/crew/${params.crewId}/problems/${todaysProblem.id}/solutions/${row.userId}`,
     };
   });
