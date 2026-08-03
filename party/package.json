@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "npx partykit dev",
-    "deploy": "npx partykit deploy"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "partykit": "^0.0.108"
+    "partyserver": "^0.5.10"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260801.1",
+    "typescript": "^5.6.3",
+    "wrangler": "^4.118.0"
   }
 }

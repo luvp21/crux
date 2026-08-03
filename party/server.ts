@@ -1,4 +1,4 @@
-import type * as Party from "partykit/server";
+import { Server, getServerByName, type Connection, type ConnectionContext } from "partyserver";
 
 type MemberStatus = "coding" | "solved" | "idle";
 
@@ -32,15 +32,23 @@ interface RoomMember {
   connectionId: string;
 }
 
-export default class RoomServer implements Party.Server {
+interface Env {
+  RoomServer: DurableObjectNamespace<RoomServer>;
+}
+
+// Ported from the original PartyKit `Party.Server` implementation — same
+// in-memory members/chatHistory shape, same wire protocol (init/members/chat
+// messages), so `lib/partykit.ts` on the client needed zero changes. Only
+// the framework underneath changed (PartyKit's managed platform -> a plain
+// Cloudflare Worker + Durable Object via partyserver, deployed with
+// `wrangler deploy` to sidestep PartyKit's free-plan Durable Objects
+// migration issue and the partykit.dev shared-zone custom-domain limit).
+export class RoomServer extends Server<Env> {
   members: Map<string, RoomMember> = new Map();
   chatHistory: ChatMessage[] = [];
 
-  constructor(readonly room: Party.Room) {}
-
-  onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
-    // Send current state to the new connection
-    conn.send(
+  onConnect(connection: Connection, _ctx: ConnectionContext) {
+    connection.send(
       JSON.stringify({
         type: "init",
         members: Array.from(this.members.values()).map(({ userId, name, status }) => ({
@@ -53,7 +61,7 @@ export default class RoomServer implements Party.Server {
     );
   }
 
-  onMessage(message: string, sender: Party.Connection) {
+  onMessage(connection: Connection, message: string) {
     try {
       const data = JSON.parse(message) as IncomingMessage;
 
@@ -63,10 +71,8 @@ export default class RoomServer implements Party.Server {
             userId: data.userId,
             name: data.name,
             status: data.status,
-            connectionId: sender.id,
+            connectionId: connection.id,
           });
-
-          // Broadcast updated member list to all connections
           this.broadcastMembers();
           break;
         }
@@ -90,13 +96,11 @@ export default class RoomServer implements Party.Server {
           };
           this.chatHistory.push(chatMsg);
 
-          // Keep chat history bounded
           if (this.chatHistory.length > 200) {
             this.chatHistory = this.chatHistory.slice(-100);
           }
 
-          // Broadcast to all
-          this.room.broadcast(JSON.stringify(chatMsg));
+          this.broadcast(JSON.stringify(chatMsg));
           break;
         }
       }
@@ -105,10 +109,9 @@ export default class RoomServer implements Party.Server {
     }
   }
 
-  onClose(conn: Party.Connection) {
-    // Remove member by connection ID
+  onClose(connection: Connection) {
     for (const [userId, member] of this.members) {
-      if (member.connectionId === conn.id) {
+      if (member.connectionId === connection.id) {
         this.members.delete(userId);
         break;
       }
@@ -117,11 +120,27 @@ export default class RoomServer implements Party.Server {
   }
 
   private broadcastMembers() {
-    const memberList = Array.from(this.members.values()).map(
-      ({ userId, name, status }) => ({ userId, name, status }),
-    );
-    this.room.broadcast(
-      JSON.stringify({ type: "members", members: memberList }),
-    );
+    const memberList = Array.from(this.members.values()).map(({ userId, name, status }) => ({
+      userId,
+      name,
+      status,
+    }));
+    this.broadcast(JSON.stringify({ type: "members", members: memberList }));
   }
 }
+
+// Manual routing (instead of partyserver's default `routePartykitRequest`,
+// which expects `/parties/:party/:room`) so the URL scheme stays exactly
+// `/party/:roomId` — matching what `lib/partykit.ts` already sends.
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    const match = url.pathname.match(/^\/party\/([^/]+)/);
+    if (!match) {
+      return new Response("Not found", { status: 404 });
+    }
+    const roomId = match[1];
+    const stub = await getServerByName(env.RoomServer, roomId);
+    return stub.fetch(request);
+  },
+} satisfies ExportedHandler<Env>;

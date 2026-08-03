@@ -1,0 +1,10 @@
+{
+  "name": "crux-party",
+  "main": "server.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "RoomServer", "class_name": "RoomServer" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomServer"] }]
+}

@@ -1,5 +1,7 @@
 # dependencies
 /node_modules
+party/node_modules
+party/.wrangler
 
 # next.js
 /.next/
