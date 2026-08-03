@@ -11,8 +11,8 @@ export function SignInPanel({ devMode = false }: { devMode?: boolean }) {
     <div style={{ width: "100%", maxWidth: 400, animation: "up 500ms ease both" }}>
       <div
         style={{
-          fontFamily: "var(--font-display), serif",
-          fontWeight: 800,
+          fontFamily: "var(--font-inter)",
+          fontWeight: 700,
           fontSize: 16,
           letterSpacing: "0.02em",
           marginBottom: 40,
@@ -22,6 +22,7 @@ export function SignInPanel({ devMode = false }: { devMode?: boolean }) {
       </div>
       <div
         style={{
+          fontFamily: "var(--font-jetbrains-mono)",
           fontSize: "10.5px",
           letterSpacing: "0.2em",
           textTransform: "uppercase",
@@ -33,12 +34,11 @@ export function SignInPanel({ devMode = false }: { devMode?: boolean }) {
       </div>
       <h2
         style={{
-          fontFamily: "var(--font-display), serif",
-          fontWeight: 800,
+          fontFamily: "var(--font-inter)",
+          fontWeight: 700,
           fontSize: 34,
           lineHeight: 1,
           letterSpacing: "-0.01em",
-          textTransform: "uppercase",
           margin: "0 0 12px",
         }}
       >

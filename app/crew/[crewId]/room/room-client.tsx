@@ -377,6 +377,7 @@ export function RoomClient({
             display: "flex",
             alignItems: "center",
             gap: 12,
+            fontFamily: "var(--font-jetbrains-mono)",
             fontSize: "10.5px",
             letterSpacing: "0.14em",
             textTransform: "uppercase",
@@ -441,6 +442,7 @@ export function RoomClient({
               <div>
                 <div
                   style={{
+                    fontFamily: "var(--font-jetbrains-mono)",
                     fontSize: 10,
                     letterSpacing: "0.2em",
                     textTransform: "uppercase",
@@ -452,11 +454,10 @@ export function RoomClient({
                 </div>
                 <h3
                   style={{
-                    fontFamily: "var(--font-display), serif",
+                    fontFamily: "var(--font-jetbrains-mono)",
                     fontWeight: 700,
                     fontSize: 22,
                     lineHeight: 1.1,
-                    textTransform: "uppercase",
                     margin: "0 0 18px",
                   }}
                 >
@@ -693,12 +694,19 @@ export function RoomClient({
                         {sub.verdict.replace(/_/g, " ")}
                       </span>
                       {sub.runtime != null && (
-                        <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                        <span
+                          style={{
+                            fontFamily: "var(--font-jetbrains-mono)",
+                            fontSize: 11,
+                            color: "var(--muted)",
+                          }}
+                        >
                           {sub.runtime} ms
                         </span>
                       )}
                       <span
                         style={{
+                          fontFamily: "var(--font-jetbrains-mono)",
                           fontSize: "10.5px",
                           color: "var(--muted)",
                           whiteSpace: "nowrap",
@@ -960,7 +968,13 @@ export function RoomClient({
                 >
                   input
                 </div>
-                <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                <div
+                  style={{
+                    fontFamily: "var(--font-jetbrains-mono)",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                  }}
+                >
                   {activeCase.input}
                 </div>
               </div>
@@ -976,7 +990,7 @@ export function RoomClient({
                 >
                   expected
                 </div>
-                <div>{activeCase.expected}</div>
+                <div style={{ fontFamily: "var(--font-jetbrains-mono)" }}>{activeCase.expected}</div>
               </div>
               <div>
                 <div
@@ -992,6 +1006,7 @@ export function RoomClient({
                 </div>
                 <div
                   style={{
+                    fontFamily: "var(--font-jetbrains-mono)",
                     color: submitResults?.[caseIdx]
                       ? submitResults[caseIdx].passed
                         ? "var(--accent)"
@@ -1089,6 +1104,7 @@ export function RoomClient({
           <div style={{ padding: "20px 16px", flex: "none" }}>
             <div
               style={{
+                fontFamily: "var(--font-jetbrains-mono)",
                 fontSize: 10,
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
@@ -1146,6 +1162,7 @@ export function RoomClient({
           >
             <div
               style={{
+                fontFamily: "var(--font-jetbrains-mono)",
                 fontSize: 10,
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",

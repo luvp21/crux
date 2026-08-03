@@ -13,6 +13,7 @@ export default async function CrewSetupPage() {
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <div
             style={{
+              fontFamily: "var(--font-jetbrains-mono)",
               fontSize: "10.5px",
               letterSpacing: "0.2em",
               textTransform: "uppercase",
@@ -24,8 +25,8 @@ export default async function CrewSetupPage() {
           </div>
           <h2
             style={{
-              fontFamily: "var(--font-display), serif",
-              fontWeight: 800,
+              fontFamily: "var(--font-inter)",
+              fontWeight: 700,
               fontSize: 40,
               lineHeight: 1,
               letterSpacing: "-0.01em",
@@ -46,6 +47,7 @@ export default async function CrewSetupPage() {
           >
             <div
               style={{
+                fontFamily: "var(--font-jetbrains-mono)",
                 fontSize: "10.5px",
                 letterSpacing: "0.16em",
                 textTransform: "uppercase",
@@ -57,7 +59,7 @@ export default async function CrewSetupPage() {
             </div>
             <h3
               style={{
-                fontFamily: "var(--font-display), serif",
+                fontFamily: "var(--font-inter)",
                 fontWeight: 700,
                 fontSize: 20,
                 margin: "0 0 10px",
@@ -106,6 +108,7 @@ export default async function CrewSetupPage() {
           <form action={joinCrew} style={{ padding: "30px 28px" }}>
             <div
               style={{
+                fontFamily: "var(--font-jetbrains-mono)",
                 fontSize: "10.5px",
                 letterSpacing: "0.16em",
                 textTransform: "uppercase",
@@ -117,7 +120,7 @@ export default async function CrewSetupPage() {
             </div>
             <h3
               style={{
-                fontFamily: "var(--font-display), serif",
+                fontFamily: "var(--font-inter)",
                 fontWeight: 700,
                 fontSize: 20,
                 margin: "0 0 10px",
