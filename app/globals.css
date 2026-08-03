@@ -91,12 +91,3 @@ button:active {
     opacity: 0.35;
   }
 }
-
-@keyframes rail {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
